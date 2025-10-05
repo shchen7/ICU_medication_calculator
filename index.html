@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ICU藥物速率計算器</title>
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
   <style>
     body{font-family:system-ui,sans-serif;background:#f8fafc;color:#0f172a;margin:0}
     .wrap{max-width:1100px;margin:24px auto;padding:16px}
@@ -22,8 +25,6 @@
     .panel{width:min(1000px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:16px;border:1px solid #e5e7eb}
     .hr{height:1px;background:#e5e7eb;margin:12px 0}
     .chips{display:flex;flex-wrap:wrap;gap:8px}
-    .col{display:flex;align-items:center;gap:8px}
-    .grow{flex:1}
   </style>
 </head>
 <body>
@@ -35,6 +36,7 @@
       </div>
       <div class="row">
         <button id="manage" class="btn-ghost">管理</button>
+        <button id="refresh" class="btn">🔄 清快取</button>
       </div>
     </div>
 
@@ -63,11 +65,6 @@
   <script>
   // ===== 資料 =====
   const KEY = 'icu-drugs-v10';
-
-  // unit: 'ug' 微克；'mg' 毫克；'unit' 生物單位 U
-  // concs[].value 與 unit 對應（ug/mL, mg/mL, U/mL）
-  // ref.type: 'wt' 體重型；'nonwt' 非體重型
-  // diluents: 可用「溶液」陣列，'NS' / 'D5W'
   const DEFAULT = [
     { key:"NE", name:"Norepinephrine (Levophed) 正腎上腺素", unit:"ug",
       concs:[{label:"8 mg / 250 mL (32 μg/mL)", value:32},{label:"16 mg / 250 mL (64 μg/mL)", value:64}],
@@ -85,7 +82,7 @@
       concs:[{label:"1 mg / 100 mL (10 μg/mL)", value:10},{label:"5 mg / 250 mL (20 μg/mL)", value:20}],
       ref:{min:2, max:10, unit:"μg/min", type:"nonwt"},
       diluents:["NS"],
-      notes:"通常於Levophed及Vasopressin使用後仍血壓不穩方使用，但仍依科別可能會有習慣順序；周邊僅暫用，優先 CVC。"
+      notes:"通常於Levophed及Vasopressin使用後仍血壓不穩方使用；周邊僅暫用，優先 CVC。"
     },
     { key:"Dopa", name:"Dopamine (Gipamine) 多巴胺", unit:"ug",
       concs:[{label:"600 mg / 200 mL (3000 μg/mL)", value:3000}],
@@ -146,7 +143,7 @@
     }
   }
 
-  // ===== UI：藥卡（含雙向換算） =====
+  // ===== UI：藥卡（雙向換算） =====
   function makeCard(d){
     const card = document.createElement('div'); card.className='card';
     const title = document.createElement('h3'); title.textContent = d.name; card.appendChild(title);
@@ -174,14 +171,14 @@
     // 計算區（雙向）
     const box = document.createElement('div'); box.className='card'; box.style.padding='12px'; box.style.marginTop='10px';
 
-    // 共同元素
     const doseRow = document.createElement('div'); doseRow.className='row';
     const rateRow = document.createElement('div'); rateRow.className='row';
 
-    const dInp = document.createElement('input'); dInp.className='input grow'; dInp.inputMode='decimal';
+    const dInp = document.createElement('input'); dInp.className='input'; dInp.style.flex='1'; dInp.inputMode='decimal';
     dInp.placeholder = `${d.ref.min}–${d.ref.max}`;
-    const dUnit = document.createElement('span'); // 動態填
-    const rInp = document.createElement('input'); rInp.className='input grow'; rInp.inputMode='decimal'; rInp.placeholder='mL/hr';
+    const dUnit = document.createElement('span');
+
+    const rInp = document.createElement('input'); rInp.className='input'; rInp.style.flex='1'; rInp.inputMode='decimal'; rInp.placeholder='mL/hr';
     const rUnit = document.createElement('span'); rUnit.textContent='mL/hr';
 
     let lastEdited = null; // 'dose' | 'rate'
@@ -190,32 +187,26 @@
       // 體重型
       const wRow = document.createElement('div'); wRow.className='row';
       const wLab = document.createElement('span'); wLab.textContent='體重';
-      const wInp = document.createElement('input'); wInp.className='input'; wInp.style.width='90px'; wInp.placeholder='60'; wInp.inputMode='decimal';
-      const wUnit = document.createElement('span'); wUnit.textContent='kg';
-      wRow.append(wLab, wInp, wUnit);
+      const wIn = document.createElement('input'); wIn.className='input'; wIn.style.width='90px'; wIn.placeholder='60'; wIn.inputMode='decimal';
+      const wU = document.createElement('span'); wU.textContent='kg';
+      wRow.append(wLab, wIn, wU);
       box.appendChild(wRow);
 
       dUnit.textContent = doseUnitPerMin(d, true);
-      doseRow.append(
-        document.createElement('span'), doseRow.lastChild, // 佔位
-        dInp, dUnit
-      );
-      rateRow.append(
-        document.createElement('span'), rateRow.lastChild,
-        rInp, rUnit
-      );
+      doseRow.append(dInp, dUnit);
+      rateRow.append(rInp, rUnit);
       box.appendChild(doseRow);
       box.appendChild(rateRow);
 
       const updateSuggest = ()=>{
         const conc = parseFloat(sel.value);
-        const wt = parseFloat(wInp.value)||0;
+        const wt = parseFloat(wIn.value)||0;
         sugg.textContent = `≈ 建議速率：${suggestRateText(d, conc, wt)}`;
       };
 
       const sync = ()=>{
         const conc = parseFloat(sel.value);
-        const wt = parseFloat(wInp.value)||0;
+        const wt = parseFloat(wIn.value)||0;
         if (!(conc>0)) return;
         if (lastEdited==='dose'){
           const dose = parseFloat(dInp.value);
@@ -228,22 +219,16 @@
         }
       };
 
-      [sel, wInp].forEach(x=>x.addEventListener('input', ()=>{ updateSuggest(); sync(); }));
+      [sel, wIn].forEach(x=>x.addEventListener('input', ()=>{ updateSuggest(); sync(); }));
       dInp.addEventListener('input', ()=>{ lastEdited='dose'; sync(); });
       rInp.addEventListener('input', ()=>{ lastEdited='rate'; sync(); });
 
-      updateSuggest(); // 初始顯示
+      updateSuggest();
     } else {
       // 非體重型
       dUnit.textContent = doseUnitPerMin(d, false);
-      doseRow.append(
-        document.createElement('span'), doseRow.lastChild,
-        dInp, dUnit
-      );
-      rateRow.append(
-        document.createElement('span'), rateRow.lastChild,
-        rInp, rUnit
-      );
+      doseRow.append(dInp, dUnit);
+      rateRow.append(rInp, rUnit);
       box.appendChild(doseRow);
       box.appendChild(rateRow);
 
@@ -271,11 +256,11 @@
       updateSuggest();
     }
 
-    // 換算公式提示
+    // 公式提示
     const formula = document.createElement('div'); formula.className='hint';
     formula.textContent = (d.ref.type==='wt')
-      ? `${doseUnitPerMin(d,true)} ↔ mL/hr（mL/hr = 劑量 × 體重 × 60 ÷ 濃度；反推劑量 = mL/hr × 濃度 ÷ (60 × 體重)）`
-      : `${doseUnitPerMin(d,false)} ↔ mL/hr（mL/hr = 劑量 × 60 ÷ 濃度；反推劑量 = mL/hr × 濃度 ÷ 60）`;
+      ? `${doseUnitPerMin(d,true)} ↔ mL/hr（mL/hr = 劑量 × 體重 × 60 ÷ 濃度；劑量 = mL/hr × 濃度 ÷ (60 × 體重)）`
+      : `${doseUnitPerMin(d,false)} ↔ mL/hr（mL/hr = 劑量 × 60 ÷ 濃度；劑量 = mL/hr × 濃度 ÷ 60）`;
     box.appendChild(formula);
 
     card.appendChild(box);
@@ -287,10 +272,7 @@
     return card;
   }
 
-  function render(){
-    const box = $('#cards'); box.innerHTML='';
-    model.forEach(d => box.appendChild(makeCard(d)));
-  }
+  function render(){ const box = $('#cards'); box.innerHTML=''; model.forEach(d => box.appendChild(makeCard(d))); }
 
   // ===== 管理面板（含「可用溶液」勾選） =====
   function openManage(){ $('#modal').classList.add('open'); renderList(); }
@@ -437,7 +419,7 @@
     inp.click();
   };
 
-  // 初次渲染 & 列表
+  // 渲染
   function renderList(){ /* placeholder 立即覆寫 */ }
   renderList = function(){
     const L = document.getElementById('list'); L.innerHTML='';
@@ -454,7 +436,19 @@
       L.appendChild(row);
     });
   };
+
+  // ===== PWA：Service Worker 註冊 + 一鍵清快取 =====
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+  document.getElementById('refresh').addEventListener('click', async ()=>{
+    try{
+      if ('caches' in window){ const keys = await caches.keys(); for (let k of keys) await caches.delete(k); }
+      if (navigator.serviceWorker){ const regs = await navigator.serviceWorker.getRegistrations(); for (let r of regs) await r.unregister(); }
+    } finally { location.reload(true); }
+  });
   </script>
 </body>
 </html>
+
 
