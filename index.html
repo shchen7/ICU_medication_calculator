@@ -54,7 +54,7 @@
           <button id="close" class="btn">關閉</button>
         </div>
       </div>
-      <div class="hint">資料儲存在此裝置（localStorage: <code>icu-drugs-v8</code>）。</div>
+      <div class="hint">資料儲存在此裝置（localStorage: <code>icu-drugs-v7</code>）。</div>
       <div id="list" style="margin-top:10px"></div>
       <div class="hr"></div>
       <button id="add" class="btn">＋ 新增藥物</button>
@@ -63,55 +63,87 @@
 
   <script>
   // ===== 資料 =====
-  const KEY = 'icu-drugs-v8';
+  const KEY = 'icu-drugs-v7';
 
-  // unit: 'ug' 微克；'mg' 毫克；'unit' 生物單位 U
+  // 說明：
+  // unit: 'ug' = 微克; 'mg' = 毫克; 'unit' = U（生物單位）
   // concs[].value 的單位要與 unit 對應（ug/mL, mg/mL, U/mL）
-  // ref.unit 只用於顯示；計算依 unit 與 type（wt/nonwt）
-  // diluents: 可用「溶液」陣列，支援 'NS' / 'D5W'
+  // ref.unit 只用來顯示（不改變計算），計算依據 unit 與 type
+  // diluents: 可用溶媒陣列，支援 'NS' / 'D5W'（可在管理面板勾選）
   const DEFAULT = [
+    // 1) Norepinephrine (Levophed) — 非體重型，2–30 μg/min
     { key:"NE", name:"Norepinephrine (Levophed) 正腎上腺素", unit:"ug",
-      concs:[{label:"8 mg / 250 mL (32 μg/mL)", value:32},{label:"16 mg / 250 mL (64 μg/mL)", value:64}],
+      concs:[
+        {label:"8 mg / 250 mL (32 μg/mL)", value:32},
+        {label:"16 mg / 250 mL (64 μg/mL)", value:64}
+      ],
       ref:{min:2, max:30, unit:"μg/min", type:"nonwt"},
       diluents:["NS","D5W"],
       notes:"建議 CVC；周邊僅暫用並嚴密監測外滲。"
     },
+
+    // 2) Vasopressin (Pitressin) — 非體重型
     { key:"Vaso", name:"Vasopressin (Pitressin) 加壓素", unit:"unit",
       concs:[{label:"40 U / 100 mL (0.4 U/mL)", value:0.4}],
       ref:{min:0.01, max:0.04, unit:"U/min", type:"nonwt"},
       diluents:["NS","D5W"],
       notes:"常固定 0.03–0.04 U/min 作為 NE 佐藥；不建議再上調。"
     },
+
+    // 3) Epinephrine (Adrenalin) — 非體重型
     { key:"Epi", name:"Epinephrine (Adrenalin) 腎上腺素", unit:"ug",
-      concs:[{label:"1 mg / 100 mL (10 μg/mL)", value:10},{label:"5 mg / 250 mL (20 μg/mL)", value:20}],
+      concs:[
+        {label:"1 mg / 100 mL (10 μg/mL)", value:10},
+        {label:"5 mg / 250 mL (20 μg/mL)", value:20}
+      ],
       ref:{min:2, max:10, unit:"μg/min", type:"nonwt"},
       diluents:["NS","D5W"],
       notes:"依反應滴定；周邊僅暫用，優先 CVC。"
     },
+
+    // 4) Dopamine (Gipamine) — 體重型，院內 600 mg / 200 mL = 3000 μg/mL
     { key:"Dopa", name:"Dopamine (Gipamine) 多巴胺", unit:"ug",
       concs:[{label:"600 mg / 200 mL (3000 μg/mL)", value:3000}],
       ref:{min:5, max:20, unit:"μg/kg/min", type:"wt"},
       diluents:["NS","D5W"],
       notes:"5–10 μg/kg/min 以 β 效應為主；10–20 μg/kg/min α 效應↑。"
     },
+
+    // 5) Dobutamine (GENDOBU) — 體重型
     { key:"Dobu", name:"Dobutamine (GENDOBU) 多巴酚丁胺", unit:"ug",
-      concs:[{label:"250 mg / 250 mL (1000 μg/mL)", value:1000},{label:"500 mg / 250 mL (2000 μg/mL)", value:2000}],
+      concs:[
+        {label:"250 mg / 250 mL (1000 μg/mL)", value:1000},
+        {label:"500 mg / 250 mL (2000 μg/mL)", value:2000}
+      ],
       ref:{min:2, max:20, unit:"μg/kg/min", type:"wt"},
       diluents:["NS","D5W"],
       notes:"2–20 μg/kg/min 常用；留意心搏過速與血壓。"
     },
+
+    // 6) Lidocaine (Xylocaine) — 非體重型（原建議用 mg/min；濃度用 mg/mL）
     { key:"Lido", name:"Lidocaine (Xylocaine) 利多卡因", unit:"mg",
-      concs:[{label:"1 g / 500 mL (2 mg/mL)", value:2},{label:"2 g / 500 mL (4 mg/mL)", value:4}],
+      concs:[
+        {label:"1 g / 500 mL (2 mg/mL)", value:2},
+        {label:"2 g / 500 mL (4 mg/mL)", value:4}
+      ],
       ref:{min:1, max:4, unit:"mg/min", type:"nonwt"},
       diluents:["NS","D5W"],
       notes:"抗心律不整維持 1–4 mg/min；肝腎功能不全酌降。"
     },
+
+    // 7) Nicardipine (Perdipine) — 非體重型（你指定：5 amp in 200 mL；加入袋內總量 → 50 mg / 250 mL = 0.2 mg/mL）
     { key:"Nica", name:"Nicardipine (Perdipine) 尼卡地平", unit:"mg",
-      concs:[{label:"5 amp in 200 mL → 50 mg / 250 mL (0.2 mg/mL)", value:0.2}],
+      concs:[
+        {label:"5 amp in 200 mL → 50 mg / 250 mL (0.2 mg/mL)", value:0.2}
+      ],
       ref:{min:5, max:15, unit:"mg/hr", type:"nonwt"},
       diluents:["NS","D5W"],
       notes:"5 mg/hr 起，每 5–15 分鐘加 2.5 mg/hr，最大 15 mg/hr。"
     },
+
+    // 8) Nitroglycerin (Millistrol) — 非體重型（加入袋內總量）
+    // 5 amp in 200 mL：總量 250 mL → 1000 μg/mL
+    // 10 amp in 150 mL：總量 250 mL → 2000 μg/mL
     { key:"NTG", name:"Nitroglycerin (Millistrol) 硝酸甘油", unit:"ug",
       concs:[
         {label:"5 amp in 200 mL → 250 mg / 250 mL (1000 μg/mL)", value:1000},
@@ -131,9 +163,20 @@
   function save(){ localStorage.setItem(KEY, JSON.stringify(model)); }
 
   // ===== 計算 =====
-  function baseUnitSymbol(drug){ if (drug.unit==='ug') return 'μg'; if (drug.unit==='mg') return 'mg'; if (drug.unit==='unit') return 'U'; return ''; }
-  function doseUnitPerMin(drug, byWeight){ const b=baseUnitSymbol(drug); return byWeight?`${b}/kg/min`:`${b}/min`; }
-  function concUnitPerMl(drug){ const b=baseUnitSymbol(drug); return `${b}/mL`; }
+  function baseUnitSymbol(drug){
+    if (drug.unit==='ug') return 'μg';
+    if (drug.unit==='mg') return 'mg';
+    if (drug.unit==='unit') return 'U';
+    return '';
+  }
+  function doseUnitPerMin(drug, byWeight){
+    const b = baseUnitSymbol(drug);
+    return byWeight ? `${b}/kg/min` : `${b}/min`;
+  }
+  function concUnitPerMl(drug){
+    const b = baseUnitSymbol(drug);
+    return `${b}/mL`;
+  }
   function suggestRateText(d, conc, wt){
     if (!conc) return "";
     const {min, max, type} = d.ref;
@@ -152,11 +195,13 @@
     const card = document.createElement('div'); card.className='card';
     const title = document.createElement('h3'); title.textContent = d.name; card.appendChild(title);
 
-    // 可用溶液
+    // 可用溶媒顯示
     const dil = document.createElement('div'); dil.className='chips';
-    const label = document.createElement('div'); label.className='hint'; label.textContent = '可用溶液：';
+    const label = document.createElement('div'); label.className='hint'; label.textContent = '可用溶媒：';
     dil.appendChild(label);
-    (d.diluents||[]).forEach(x=>{ const t=document.createElement('span'); t.className='pill'; t.textContent=x; dil.appendChild(t); });
+    (d.diluents||[]).forEach(x=>{
+      const t=document.createElement('span'); t.className='pill'; t.textContent=x; dil.appendChild(t);
+    });
     card.appendChild(dil);
 
     // 建議劑量（保留原始單位）
@@ -176,7 +221,7 @@
     const box = document.createElement('div'); box.className='card'; box.style.padding='12px'; box.style.marginTop='10px';
 
     if (d.ref.type === 'wt'){
-      // 體重型
+      // 體重型：體重 + (單位/kg/min) → mL/hr
       const wRow = document.createElement('div'); wRow.className='row';
       const wLab = document.createElement('span'); wLab.textContent='體重';
       const wInp = document.createElement('input'); wInp.className='input'; wInp.style.width='90px'; wInp.placeholder='60'; wInp.inputMode='decimal';
@@ -208,7 +253,7 @@
       [sel,wInp,dInp].forEach(x=>x.addEventListener('input', update));
       update();
     } else {
-      // 非體重型
+      // 非體重型：(單位/min) → mL/hr
       const conc = ()=>parseFloat(sel.value);
       const doseRow = document.createElement('div'); doseRow.className='row';
       const dInp = document.createElement('input'); dInp.className='input'; dInp.placeholder=`${d.ref.min}–${d.ref.max}`; dInp.inputMode='decimal';
@@ -245,7 +290,7 @@
     model.forEach(d => box.appendChild(makeCard(d)));
   }
 
-  // ===== 管理面板（含「可用溶液」勾選） =====
+  // ===== 管理面板（表單化，含溶媒勾選） =====
   function openManage(){ $('#modal').classList.add('open'); renderList(); }
   function closeManage(){ $('#modal').classList.remove('open'); }
 
@@ -292,7 +337,7 @@
 
     const notes = document.createElement('textarea'); notes.className='input'; notes.value=d.notes||''; notes.rows=3;
 
-    // 溶液勾選
+    // 溶媒勾選
     const dilWrap = document.createElement('div');
     const cbNS = document.createElement('input'); cbNS.type='checkbox';
     const labNS = document.createElement('span'); labNS.textContent='NS';
@@ -368,20 +413,18 @@
   }
 
   // 管理面板事件
-  const openManage=()=>{ $('#modal').classList.add('open'); renderList(); };
-  const closeManage=()=>{ $('#modal').classList.remove('open'); };
-  document.getElementById('manage').onclick = openManage;
-  document.getElementById('close').onclick = closeManage;
-  document.getElementById('add').onclick = addDrug;
+  $('#manage').onclick = openManage;
+  $('#close').onclick = closeManage;
+  $('#add').onclick = addDrug;
 
   // 匯出 / 匯入
-  document.getElementById('export').onclick = ()=>{
+  $('#export').onclick = ()=>{
     const blob = new Blob([JSON.stringify(model,null,2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href=url; a.download='icu-drugs-export.json'; a.click();
     URL.revokeObjectURL(url);
   };
-  document.getElementById('import').onclick = ()=>{
+  $('#import').onclick = ()=>{
     const inp = document.createElement('input'); inp.type='file'; inp.accept='application/json';
     inp.onchange = ()=>{ const f=inp.files[0]; if(!f) return;
       f.text().then(t=>{
@@ -393,7 +436,7 @@
   };
 
   // 初次渲染
-  function renderList(){ /* placeholder，稍後被覆寫 */ }
+  function renderList(){ /* 定義於上方，避免未定義錯誤 */ }
   renderList = function(){
     const L = $('#list'); L.innerHTML='';
     model.forEach((d,i)=>{
@@ -403,21 +446,22 @@
         <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span>`;
       const btnE = document.createElement('button'); btnE.className='btn-ghost'; btnE.textContent='編輯';
       const btnD = document.createElement('button'); btnD.className='btn-ghost'; btnD.textContent='刪除';
-      btnE.onclick=()=>editDrug(i);
-      btnD.onclick=()=>{ if(confirm('確定刪除？')){ model.splice(i,1); save(); renderList(); render(); } };
+      btnE.onclick=()=>editDrug(i); btnD.onclick=()=>{ if(confirm('確定刪除？')){ model.splice(i,1); save(); renderList(); render(); } };
       row.append(document.createElement('br'), btnE, btnD);
       L.appendChild(row);
     });
   };
 
-  // 渲染
+  // === 渲染藥卡 ===
   function render(){ const box = $('#cards'); box.innerHTML=''; model.forEach(d => box.appendChild(makeCard(d))); }
 
-  // PWA
-  if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(()=>{}); }
+  // PWA Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
 
   // 🔄 強制刷新
-  document.getElementById('refresh').addEventListener('click', async ()=>{
+  $('#refresh').addEventListener('click', async ()=>{
     try{
       if ('caches' in window){ const keys = await caches.keys(); for (let k of keys) await caches.delete(k); }
       if (navigator.serviceWorker){ const regs = await navigator.serviceWorker.getRegistrations(); for (let r of regs) await r.unregister(); }
@@ -426,5 +470,6 @@
   </script>
 </body>
 </html>
+
 
 
