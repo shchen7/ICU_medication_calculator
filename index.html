@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ICU 急救藥物速率計算器</title>
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
+  <style>
+    body{font-family:system-ui,sans-serif;background:#f8fafc;color:#0f172a;margin:0}
+    .wrap{max-width:1000px;margin:24px auto;padding:16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+    .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+    .input,.select{border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:14px}
+    .note{font-size:14px;color:#0f172a}
+    .btn-refresh{border:1px solid #0f172a;border-radius:10px;padding:6px 10px;background:#0f172a;color:#fff;font-size:12px;cursor:pointer;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <h1>ICU 急救藥物速率計算器</h1>
+        <div class="note">PWA · 可離線 · 建議劑量同步換算 mL/hr</div>
+      </div>
+      <div class="row">
+        <span>體重</span>
+        <input id="weight" class="input" style="width:90px" inputmode="decimal" placeholder="60">
+        <span>kg</span>
+        <button id="refresh" class="btn-refresh">🔄 強制刷新</button>
+      </div>
+    </div>
+    <div id="cards"></div>
+  </div>
+
+  <script>
+  const DRUGS = [
+    { key:"Epi", name:"Epinephrine 腎上腺素", unit:"ug",
+      concs:[{label:"1 mg / 100 mL (10 μg/mL)",value:10},{label:"5 mg / 250 mL (20 μg/mL)",value:20}],
+      ref:{min:2, max:10, unit:"μg/min", type:"nonwt"},
+      notes:"ACLS/休克支援；周邊僅暫用，優先 CVC。"
+    },
+    { key:"NE", name:"Norepinephrine (Levophed) 正腎上腺素", unit:"ug",
+      concs:[{label:"8 mg / 250 mL (32 μg/mL)",value:32},{label:"16 mg / 250 mL (64 μg/mL)",value:64}],
+      ref:{min:2, max:30, unit:"μg/min", type:"nonwt"},
+      notes:"敗血性休克首選；嚴防外滲，末梢監測。"
+    },
+    { key:"Dopa", name:"Dopamine 多巴胺", unit:"ug",
+      concs:[{label:"600 mg / 200 mL (3000 μg/mL)",value:3000}],
+      ref:{min:5, max:20, unit:"μg/kg/min", type:"wt"},
+      notes:"中高劑量具有 α 效應，需監控。"
+    },
+    { key:"Dobu", name:"Dobutamine 多巴酚丁胺", unit:"ug",
+      concs:[{label:"250 mg / 250 mL (1000 μg/mL)",value:1000}],
+      ref:{min:2, max:20, unit:"μg/kg/min", type:"wt"},
+      notes:"低心輸出性心衰用藥。"
+    },
+    { key:"Vaso", name:"Vasopressin 加壓素", unit:"unit",
+      concs:[{label:"40 U / 100 mL (0.4 U/mL)",value:0.4}],
+      ref:{min:0.01, max:0.04, unit:"U/min", type:"nonwt"},
+      notes:"多採固定劑量；不建議滴定 >0.04 U/min。"
+    }
+  ];
+
+  const $ = s => document.querySelector(s);
+  const fmt = n => Number.isFinite(n)?(+n).toFixed(2).replace(/\.?0+$/,''):"";
+
+  function calcRange(drug, conc, wt){
+    if (!conc) return "";
+    const {min, max, type} = drug.ref;
+    let rMin, rMax;
+    if (type === "wt" && wt > 0) {
+      rMin = min * wt * 60 / conc;
+      rMax = max * wt * 60 / conc;
+    } else {
+      rMin = min * 60 / conc;
+      rMax = max * 60 / conc;
+    }
+    return `${fmt(rMin)}–${fmt(rMax)} mL/hr`;
+  }
+
+  function render(){
+    const box = $("#cards"); box.innerHTML = "";
+    const wt = parseFloat($("#weight").value) || 0;
+
+    DRUGS.forEach(d => {
+      const card = document.createElement("div"); card.className = "card";
+      const sel = document.createElement("select"); sel.className = "select";
+      d.concs.forEach(c => {
+        const o = document.createElement("option");
+        o.value = c.value; o.textContent = c.label;
+        sel.appendChild(o);
+      });
+
+      const suggest = document.createElement("div");
+      suggest.innerHTML = `<b>建議劑量：</b>${d.ref.min}–${d.ref.max} ${d.ref.unit}（成人）`;
+
+      const rateLine = document.createElement("div");
+      rateLine.className = "note";
+      const upd = () => {
+        rateLine.textContent = `≈ 建議速率：${calcRange(d, parseFloat(sel.value), wt)}`;
+      };
+      sel.onchange = upd;
+      $("#weight").oninput = upd;
+
+      card.appendChild(suggest);
+      card.append("濃度：", sel);
+      card.appendChild(document.createElement("br"));
+      card.appendChild(rateLine);
+      const note = document.createElement("div");
+      note.className = "note";
+      note.textContent = d.notes;
+      card.appendChild(document.createElement("br"));
+      card.appendChild(note);
+
+      upd();
+      box.appendChild(card);
+    });
+  }
+
+  render();
+
+  // PWA Service Worker 註冊
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+
+  // 🔄 強制刷新功能
+  document.getElementById('refresh').addEventListener('click', async () => {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      for (let key of keys) await caches.delete(key);
+    }
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (let reg of regs) await reg.unregister();
+    }
+    location.reload(true);
+  });
+  </script>
+</body>
+</html>
