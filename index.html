@@ -37,6 +37,7 @@
       </div>
       <div class="row">
         <button id="manage" class="btn-ghost">管理</button>
+        <button id="share" class="btn-ghost">分享連結</button>
         <button id="refresh" class="btn">🔄 清快取</button>
       </div>
     </div>
@@ -56,7 +57,7 @@
           <button id="close" class="btn">關閉</button>
         </div>
       </div>
-      <div class="hint">資料儲存在此裝置（localStorage: <code>icu-drugs-v11</code>）。</div>
+      <div class="hint">本機快取（localStorage: <code>icu-drugs-v12</code>）。</div>
       <div id="list" style="margin-top:10px"></div>
       <div class="hr"></div>
       <button id="add" class="btn">＋ 新增藥物</button>
@@ -65,7 +66,7 @@
 
   <script>
   // ===== 資料 =====
-  const KEY = 'icu-drugs-v11';
+  const KEY = 'icu-drugs-v12'; // 升版本避免舊資料干擾
   const DEFAULT = [
     { key:"NE", name:"Norepinephrine (Levophed) 正腎上腺素", unit:"ug",
       concs:[{label:"8 mg / 250 mL (32 μg/mL)", value:32},{label:"16 mg / 250 mL (64 μg/mL)", value:64}],
@@ -129,9 +130,6 @@
 
   // ===== 計算工具 =====
   function baseUnitSymbol(drug){ if (drug.unit==='ug') return 'μg'; if (drug.unit==='mg') return 'mg'; if (drug.unit==='unit') return 'U'; return ''; }
-  function doseUnitPerMin(drug, byWeight){ const b=baseUnitSymbol(drug); return byWeight?`${b}/kg/min`:`${b}/min`; }
-
-  // 依顯示單位決定是否乘 60（/min→×60，/hr→×1），加強容錯
   function timeFactor(d){
     const u = (d.ref?.unit || "").toLowerCase().replace(/\s+/g,'');
     if (u.includes('/min')) return 60;
@@ -139,14 +137,11 @@
     console.warn('未偵測到 /min 或 /hr，預設按 /min：', d.ref?.unit);
     return 60;
   }
-
-  // 顯示在輸入框旁的「劑量單位」：以 ref.unit 為準（Perdipine = mg/hr）
   function doseDisplayUnit(d){
     if (d.ref && d.ref.unit) return d.ref.unit;
     const b = baseUnitSymbol(d);
     return d.ref?.type === 'wt' ? `${b}/kg/min` : `${b}/min`;
   }
-
   function suggestRateText(d, conc, wt){
     if (!conc) return "";
     const {min, max, type} = d.ref;
@@ -278,7 +273,7 @@
       updateSuggest();
     }
 
-    // 公式提示（用 tf 與正確顯示單位）
+    // 公式提示
     const formula = document.createElement('div'); formula.className='hint';
     const tfTxt = timeFactor(d);
     formula.textContent = (d.ref.type==='wt')
@@ -297,10 +292,7 @@
 
   function render(){ const box = $('#cards'); box.innerHTML=''; model.forEach(d => box.appendChild(makeCard(d))); }
 
-  // ===== 管理面板（含「可用溶液」勾選 & 建議劑量單位下拉） =====
-  function openManage(){ $('#modal').classList.add('open'); renderList(); }
-  function closeManage(){ $('#modal').classList.remove('open'); }
-
+  // ===== 管理面板（含 可用溶液 & 建議劑量單位 下拉） =====
   function renderList(){
     const L = $('#list'); L.innerHTML='';
     model.forEach((d,i)=>{
@@ -342,7 +334,7 @@
     const rmin = document.createElement('input'); rmin.className='input'; rmin.inputMode='decimal'; rmin.value=d.ref.min;
     const rmax = document.createElement('input'); rmax.className='input'; rmax.inputMode='decimal'; rmax.value=d.ref.max;
 
-    // 建議劑量單位（下拉，不再自由輸入）
+    // 建議劑量單位（下拉）
     const refUnits = [
       'μg/min','mg/min','U/min',
       'μg/kg/min','mg/kg/min','U/kg/min',
@@ -351,7 +343,6 @@
     ];
     const runit = document.createElement('select'); runit.className='select';
     refUnits.forEach(u=>{ const o=document.createElement('option'); o.value=u; o.textContent=u; runit.appendChild(o); });
-    // 嘗試對齊既有值（大小寫/空白不敏感）
     const norm = s => (s||'').toLowerCase().replace(/\s+/g,'');
     const found = refUnits.find(u => norm(u) === norm(d.ref.unit));
     runit.value = found || 'μg/min';
@@ -394,7 +385,7 @@
     saveBtn.onclick = ()=>{
       d.key = key.value.trim(); d.name = name.value.trim();
       d.unit = unit.value; d.ref.type = type.value;
-      d.ref.min = +rmin.value; d.ref.max = +rmax.value; d.ref.unit = runit.value; // 用下拉值
+      d.ref.min = +rmin.value; d.ref.max = +rmax.value; d.ref.unit = runit.value;
       d.diluents = []; if (cbNS.checked) d.diluents.push('NS'); if (cbD5.checked) d.diluents.push('D5W');
       d.concs = d.concs
         .filter(x=>x.label && Number.isFinite(+x.value) && +x.value>0)
@@ -458,6 +449,37 @@
     inp.click();
   };
 
+  // ===== 一鍵分享連結（免雲端） =====
+  // 產生可分享連結：把 model 壓到 URL hash（#d=...）
+  document.getElementById('share').addEventListener('click', ()=>{
+    try{
+      const payload = encodeURIComponent(JSON.stringify(model));
+      const b64 = btoa(payload);
+      const url = `${location.origin}${location.pathname}#d=${b64}`;
+      navigator.clipboard?.writeText(url);
+      alert('已產生並複製連結！把這個網址貼給同事即可。');
+    }catch(e){
+      alert('產生分享連結失敗：資料過大或瀏覽器限制');
+    }
+  });
+
+  // 若以 #d= 開啟 → 自動匯入並清掉 hash
+  (function(){
+    if (location.hash.startsWith('#d=')) {
+      try{
+        const b64 = location.hash.slice(3);
+        const json = decodeURIComponent(atob(b64));
+        const data = JSON.parse(json);
+        if (Array.isArray(data) && data.length) {
+          model = data;
+          save(); renderList(); render();
+          alert('已從連結載入藥物清單，並儲存在此裝置。');
+        }
+      }catch(e){ console.warn('分享連結解析失敗', e); }
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  })();
+
   // 渲染
   function renderList(){ /* placeholder 立即覆寫 */ }
   renderList = function(){
@@ -490,4 +512,5 @@
   </script>
 </body>
 </html>
+
 
