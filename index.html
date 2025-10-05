@@ -25,6 +25,7 @@
     .panel{width:min(1000px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:16px;border:1px solid #e5e7eb}
     .hr{height:1px;background:#e5e7eb;margin:12px 0}
     .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .grow{flex:1}
   </style>
 </head>
 <body>
@@ -55,7 +56,7 @@
           <button id="close" class="btn">關閉</button>
         </div>
       </div>
-      <div class="hint">資料儲存在此裝置（localStorage: <code>icu-drugs-v10</code>）。</div>
+      <div class="hint">資料儲存在此裝置（localStorage: <code>icu-drugs-v11</code>）。</div>
       <div id="list" style="margin-top:10px"></div>
       <div class="hr"></div>
       <button id="add" class="btn">＋ 新增藥物</button>
@@ -64,7 +65,7 @@
 
   <script>
   // ===== 資料 =====
-  const KEY = 'icu-drugs-v10';
+  const KEY = 'icu-drugs-v11';
   const DEFAULT = [
     { key:"NE", name:"Norepinephrine (Levophed) 正腎上腺素", unit:"ug",
       concs:[{label:"8 mg / 250 mL (32 μg/mL)", value:32},{label:"16 mg / 250 mL (64 μg/mL)", value:64}],
@@ -129,18 +130,17 @@
   // ===== 計算工具 =====
   function baseUnitSymbol(drug){ if (drug.unit==='ug') return 'μg'; if (drug.unit==='mg') return 'mg'; if (drug.unit==='unit') return 'U'; return ''; }
   function doseUnitPerMin(drug, byWeight){ const b=baseUnitSymbol(drug); return byWeight?`${b}/kg/min`:`${b}/min`; }
-  function concUnitPerMl(drug){ const b=baseUnitSymbol(drug); return `${b}/mL`; }
 
-  // 依顯示單位決定是否乘 60（/min→×60，/hr→×1）
+  // 依顯示單位決定是否乘 60（/min→×60，/hr→×1），加強容錯
   function timeFactor(d){
-    const u = (d.ref?.unit || "").toLowerCase();
+    const u = (d.ref?.unit || "").toLowerCase().replace(/\s+/g,'');
     if (u.includes('/min')) return 60;
     if (u.includes('/hr')) return 1;
-    // 沒時間單位就保守：維持 60（原行為）
+    console.warn('未偵測到 /min 或 /hr，預設按 /min：', d.ref?.unit);
     return 60;
   }
 
-  // 顯示在輸入框旁的「劑量單位」一律以 ref.unit 為準（Perdipine = mg/hr）
+  // 顯示在輸入框旁的「劑量單位」：以 ref.unit 為準（Perdipine = mg/hr）
   function doseDisplayUnit(d){
     if (d.ref && d.ref.unit) return d.ref.unit;
     const b = baseUnitSymbol(d);
@@ -194,11 +194,11 @@
     const doseRow = document.createElement('div'); doseRow.className='row';
     const rateRow = document.createElement('div'); rateRow.className='row';
 
-    const dInp = document.createElement('input'); dInp.className='input'; dInp.style.flex='1'; dInp.inputMode='decimal';
+    const dInp = document.createElement('input'); dInp.className='input grow'; dInp.inputMode='decimal';
     dInp.placeholder = `${d.ref.min}–${d.ref.max}`;
     const dUnit = document.createElement('span');
 
-    const rInp = document.createElement('input'); rInp.className='input'; rInp.style.flex='1'; rInp.inputMode='decimal'; rInp.placeholder='mL/hr';
+    const rInp = document.createElement('input'); rInp.className='input grow'; rInp.inputMode='decimal'; rInp.placeholder='mL/hr';
     const rUnit = document.createElement('span'); rUnit.textContent='mL/hr';
 
     let lastEdited = null; // 'dose' | 'rate'
@@ -297,7 +297,7 @@
 
   function render(){ const box = $('#cards'); box.innerHTML=''; model.forEach(d => box.appendChild(makeCard(d))); }
 
-  // ===== 管理面板（含「可用溶液」勾選） =====
+  // ===== 管理面板（含「可用溶液」勾選 & 建議劑量單位下拉） =====
   function openManage(){ $('#modal').classList.add('open'); renderList(); }
   function closeManage(){ $('#modal').classList.remove('open'); }
 
@@ -307,7 +307,8 @@
       const row = document.createElement('div'); row.className='card';
       row.innerHTML = `<b>${d.name}</b> <span class="hint">(${d.key})</span><br>
         <span class="hint">濃度：${d.concs.map(x=>x.label).join('、')}</span><br>
-        <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span>`;
+        <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span><br>
+        <span class="hint">建議劑量單位：${d.ref.unit}</span>`;
       const btnE = document.createElement('button'); btnE.className='btn-ghost'; btnE.textContent='編輯';
       const btnD = document.createElement('button'); btnD.className='btn-ghost'; btnD.textContent='刪除';
       btnE.onclick=()=>editDrug(i);
@@ -335,12 +336,25 @@
     unit.value = d.unit;
 
     const type = document.createElement('select'); type.className='select';
-    [['wt','體重型（*/kg/min）'],['nonwt','非體重型（*/min 或 */hr）']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; type.appendChild(o); });
+    [['wt','體重型（*/kg/min 或 */kg/hr）'],['nonwt','非體重型（*/min 或 */hr）']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; type.appendChild(o); });
     type.value = d.ref.type;
 
     const rmin = document.createElement('input'); rmin.className='input'; rmin.inputMode='decimal'; rmin.value=d.ref.min;
     const rmax = document.createElement('input'); rmax.className='input'; rmax.inputMode='decimal'; rmax.value=d.ref.max;
-    const runit = document.createElement('input'); runit.className='input'; runit.value=d.ref.unit;
+
+    // 建議劑量單位（下拉，不再自由輸入）
+    const refUnits = [
+      'μg/min','mg/min','U/min',
+      'μg/kg/min','mg/kg/min','U/kg/min',
+      'μg/hr','mg/hr','U/hr',
+      'μg/kg/hr','mg/kg/hr','U/kg/hr'
+    ];
+    const runit = document.createElement('select'); runit.className='select';
+    refUnits.forEach(u=>{ const o=document.createElement('option'); o.value=u; o.textContent=u; runit.appendChild(o); });
+    // 嘗試對齊既有值（大小寫/空白不敏感）
+    const norm = s => (s||'').toLowerCase().replace(/\s+/g,'');
+    const found = refUnits.find(u => norm(u) === norm(d.ref.unit));
+    runit.value = found || 'μg/min';
 
     const notes = document.createElement('textarea'); notes.className='input'; notes.value=d.notes||''; notes.rows=3;
 
@@ -367,8 +381,8 @@
       concList.innerHTML='';
       d.concs.forEach((c,ci)=>{
         const row=document.createElement('div'); row.className='row';
-        const l=document.createElement('input'); l.className='input'; l.style.flex='1'; l.placeholder='例：50 mg / 250 mL (0.2 mg/mL)'; l.value=c.label;
-        const v=document.createElement('input'); v.className='input'; v.style.width='160px'; v.inputMode='decimal'; v.placeholder='數值(與單位一致，例如 0.2、1000)'; v.value=c.value;
+        const l=document.createElement('input'); l.className='input grow'; l.placeholder='例：50 mg / 250 mL (0.2 mg/mL)'; l.value=c.label;
+        const v=document.createElement('input'); v.className='input'; v.style.width='160px'; v.inputMode='decimal'; v.placeholder='每 mL 數值（0.2、1000…）'; v.value=c.value;
         const del=document.createElement('button'); del.className='btn-ghost'; del.textContent='刪除';
         l.oninput=()=>c.label=l.value; v.oninput=()=>c.value=+v.value; del.onclick=()=>{ d.concs.splice(ci,1); drawConcs(); };
         row.append(l,v,del); concList.appendChild(row);
@@ -380,9 +394,11 @@
     saveBtn.onclick = ()=>{
       d.key = key.value.trim(); d.name = name.value.trim();
       d.unit = unit.value; d.ref.type = type.value;
-      d.ref.min = +rmin.value; d.ref.max = +rmax.value; d.ref.unit = runit.value.trim();
+      d.ref.min = +rmin.value; d.ref.max = +rmax.value; d.ref.unit = runit.value; // 用下拉值
       d.diluents = []; if (cbNS.checked) d.diluents.push('NS'); if (cbD5.checked) d.diluents.push('D5W');
-      d.concs = d.concs.filter(x=>x.label && Number.isFinite(+x.value) && +x.value>0).map(x=>({label:x.label, value:+x.value}));
+      d.concs = d.concs
+        .filter(x=>x.label && Number.isFinite(+x.value) && +x.value>0)
+        .map(x=>({label:x.label, value:+x.value}));
       d.notes = notes.value;
       if (!d.key || !d.name) return alert('key 與 name 必填');
       if (d.concs.length===0) return alert('至少一筆濃度');
@@ -395,13 +411,13 @@
     box.append(
       field('key（英數，不重複）', key),
       field('名稱', name),
-      field('單位（μg / mg / U）', unit),
+      field('濃度基本單位（決定 concs.value 的單位 / mL）', unit),
       field('劑量型態（體重型 / 非體重型）', type),
-      field('建議劑量最小值（與顯示單位對應）', rmin),
-      field('建議劑量最大值（與顯示單位對應）', rmax),
-      field('建議劑量顯示單位（例：μg/min、μg/kg/min、mg/hr、U/min）', runit),
+      field('建議劑量最小值', rmin),
+      field('建議劑量最大值', rmax),
+      field('建議劑量單位（選擇 /min 或 /hr、是否含 /kg）', runit),
       field('可用溶液（勾選）', dilWrap),
-      field('濃度清單（value 請用與單位相同的單位 / mL）', concWrap),
+      field('濃度清單（value 以上述基本單位 / mL）', concWrap),
       field('備註', notes),
       document.createElement('div'),
       saveBtn, backBtn
@@ -450,7 +466,8 @@
       const row = document.createElement('div'); row.className='card';
       row.innerHTML = `<b>${d.name}</b> <span class="hint">(${d.key})</span><br>
         <span class="hint">濃度：${d.concs.map(x=>x.label).join('、')}</span><br>
-        <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span>`;
+        <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span><br>
+        <span class="hint">建議劑量單位：${d.ref.unit}</span>`;
       const btnE = document.createElement('button'); btnE.className='btn-ghost'; btnE.textContent='編輯';
       const btnD = document.createElement('button'); btnD.className='btn-ghost'; btnD.textContent='刪除';
       btnE.onclick=()=>editDrug(i);
