@@ -1,26 +1,24 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ICU 急救藥物速率計算器（單檔重寫版）</title>
-  <!-- 若已放 PWA 檔，這兩行請保留；沒有可先忽略，畫面一樣能跑 -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ICU 急救藥物速率計算器</title>
+
+  <!-- PWA 支援 -->
   <link rel="manifest" href="./manifest.json" />
   <meta name="theme-color" content="#0f172a" />
+
   <style>
-    *{box-sizing:border-box} body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f8fafc;color:#0f172a;margin:0}
-    .wrap{max-width:960px;margin:24px auto;padding:16px}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 4px 16px rgba(15,23,42,.06);padding:16px;margin:12px 0}
-    .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-    .row > *{flex:0 0 auto}
-    .input{border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:14px}
-    .select{border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:14px;min-width:240px}
-    .btn{border:1px solid #0f172a;border-radius:10px;padding:6px 10px;background:#0f172a;color:#fff;font-size:12px;cursor:pointer}
-    .pill{border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;font-size:12px;background:#f1f5f9}
-    .warn{border-color:#ef4444;background:#fee2e2}
-    .note{font-size:12px;color:#64748b}
-    h1{margin:0;font-size:22px} h3{margin:0 0 8px 0;font-size:16px}
-    ul{margin:6px 0 0 18px}
+    body { font-family: system-ui, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; }
+    .wrap { max-width: 960px; margin: 24px auto; padding: 16px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 16px; margin: 12px 0; box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .input, .select { border: 1px solid #cbd5e1; border-radius: 10px; padding: 8px 10px; font-size: 14px; }
+    .btn { border: 1px solid #0f172a; border-radius: 10px; padding: 6px 10px; background: #0f172a; color: #fff; font-size: 12px; cursor: pointer; }
+    .pill { border: 1px solid #e5e7eb; border-radius: 999px; padding: 4px 10px; font-size: 12px; background: #f1f5f9; }
+    .note { font-size: 12px; color: #64748b; }
+    .warn { border-color: #ef4444; background: #fee2e2; }
   </style>
 </head>
 <body>
@@ -28,214 +26,86 @@
     <div class="row" style="justify-content:space-between">
       <div>
         <h1>ICU 急救藥物速率計算器</h1>
-        <div class="note">單檔版 · 免框架 · 支援自訂濃度與相容性提示</div>
+        <div class="note">PWA · 離線可用 · 雙單位 · 自訂院內濃度</div>
       </div>
       <div class="row">
         <span>體重</span>
-        <input id="weight" class="input" style="width:90px" inputmode="decimal" placeholder="60" />
+        <input id="weight" class="input" style="width:90px" inputmode="decimal" placeholder="60">
         <span>kg</span>
       </div>
     </div>
 
-    <!-- 容器：藥卡 -->
     <div id="cards"></div>
 
     <div class="card">
       <div class="note">
-        臨床安全提醒：本工具僅供教學與提醒；實務以院內處方集 / 醫囑 / SOP 為準。升壓劑屬血管刺激性（vesicant），優先中心靜脈；周邊僅短暫應急並嚴密觀察外滲。
+        臨床安全提醒：本工具僅供教學與提醒；實務以院內處方集 / 醫囑 / SOP 為準。
+        升壓劑屬血管刺激性（vesicant），優先中心靜脈；周邊僅短暫應急並嚴密觀察外滲。
       </div>
     </div>
   </div>
 
   <script>
-    // -------------------- 初始資料（依妳之前偏好重寫） --------------------
     const DRUGS = [
       {
-        key: "Epinephrine", name: "Epinephrine 腎上腺素", unit: "ug",
-        // 妳改過：10、20 μg/mL
-        concs: [{label:"1 mg / 100 mL  (10 μg/mL)",value:10},{label:"5 mg / 250 mL  (20 μg/mL)",value:20}],
-        // 參考走「非體重」路徑：μg/min
-        ref: {type:"nonwt", min:2, max:10, unit:"μg/min"},
-        compat: {line:"CVC 優先（PIV 可短暫）", exclusive:true, lightProtect:false, coadmin:["NS","D5W"], avoid:["鹼性藥物"], note:"外滲風險，監測末梢灌流"},
-        notes:"ACLS 休克輔助；周邊僅暫用，優先 CVC。"
+        key: "Epi", name: "Epinephrine 腎上腺素", unit: "ug",
+        concs: [{label:"1 mg / 100 mL (10 μg/mL)",value:10},{label:"5 mg / 250 mL (20 μg/mL)",value:20}],
+        ref:{type:"nonwt",min:2,max:10,unit:"μg/min"},
+        compat:{line:"CVC 優先（PIV 可短暫）",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["鹼性藥"],note:"外滲風險，監測末梢灌流"},
+        notes:"ACLS 休克輔助。"
       },
       {
-        key: "Norepinephrine", name: "Norepinephrine 正腎上腺素", unit: "ug",
-        // 妳改過：32、64 μg/mL
-        concs: [{label:"8 mg / 250 mL  (32 μg/mL)",value:32},{label:"16 mg / 250 mL  (64 μg/mL)",value:64}],
-        // 安全起見，參考仍用 μg/kg/min（臨床常見），但可自由輸入
-        ref: {type:"wt", min:0.05, max:1.0, unit:"μg/kg/min"},
-        compat: {line:"16 mg 僅建議 CVC（PIV 可短暫）",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["與血製劑同管"],note:"嚴防外滲；末梢灌流監測"},
-        notes:"敗血性休克首選升壓劑；嚴防外滲。"
+        key:"NE", name:"Norepinephrine (Levophed) 正腎上腺素", unit:"ug",
+        concs:[{label:"8 mg / 250 mL (32 μg/mL)",value:32},{label:"16 mg / 250 mL (64 μg/mL)",value:64}],
+        ref:{type:"wt",min:0.05,max:1.0,unit:"μg/kg/min"},
+        compat:{line:"CVC 建議，PIV 僅暫用",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["血製劑"],note:"嚴防外滲，末梢監測"},
+        notes:"敗血性休克首選升壓劑。"
       },
       {
-        key:"Dopamine", name:"Dopamine 多巴胺", unit:"ug",
-        concs:[{label:"400 mg / 250 mL  (1600 μg/mL)",value:1600}],
-        ref:{type:"wt",min:2,max:20,unit:"μg/kg/min"},
-        compat:{line:"CVC 或大口徑 PIV",exclusive:false,lightProtect:false,coadmin:["NS","D5W"],avoid:["鹼性藥"],note:">10 μg/kg/min α 效應強；心律不整風險"},
-        notes:">10 μg/kg/min α 效應強、心律不整風險↑。"
-      },
-      {
-        key:"Dobutamine", name:"Dobutamine 多巴酚丁胺", unit:"ug",
-        concs:[{label:"250 mg / 250 mL  (1000 μg/mL)",value:1000},{label:"500 mg / 250 mL  (2000 μg/mL)",value:2000}],
-        ref:{type:"wt",min:2,max:20,unit:"μg/kg/min"},
-        compat:{line:"CVC 或大口徑 PIV",exclusive:false,lightProtect:false,coadmin:["NS","D5W"],avoid:["與升壓劑同管"],note:"血壓偏低者慎用；可能致心搏過速"},
-        notes:"心因性休克/低心輸出；注意血壓。"
-      },
-      {
-        key:"Vasopressin", name:"Vasopressin 加壓素", unit:"unit",
-        // 妳改過：0.4 U/mL
-        concs:[{label:"40 U / 100 mL  (0.4 U/mL)",value:0.4}],
+        key:"Vaso", name:"Vasopressin 加壓素", unit:"unit",
+        concs:[{label:"40 U / 100 mL (0.4 U/mL)",value:0.4}],
         ref:{type:"nonwt",min:0.01,max:0.04,unit:"U/min"},
-        compat:{line:"CVC",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["與多數藥共管"],note:"勿滴定 >0.04 U/min；末梢灌流風險"},
-        notes:"NE 佐藥；不建議滴定 >0.04 U/min。"
+        compat:{line:"CVC",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["多數藥"],note:"勿滴定 >0.04 U/min；外滲風險"},
+        notes:"NE 佐藥，不建議滴定超標。"
       },
     ];
 
-    const $ = sel => document.querySelector(sel);
-    const fmt = n => Number.isFinite(n) ? (+n).toFixed(3).replace(/\.?0+$/,'') : "";
+    const $ = s => document.querySelector(s);
+    const fmt = n => Number.isFinite(n)?(+n).toFixed(3).replace(/\.?0+$/,''):"";
 
-    // -------------------- 建立單一藥卡 --------------------
-    function makeCard(drug){
-      const div = document.createElement('div');
-      div.className = 'card';
-
-      div.innerHTML = `
-        <div class="row" style="justify-content:space-between">
-          <h3>${drug.name}</h3>
-          <div class="row">
-            <span class="note">選擇濃度</span>
-            <select class="select js-conc"></select>
-            <button class="btn js-add">新增濃度</button>
-          </div>
+    function makeCard(d){
+      const el=document.createElement('div');el.className='card';
+      el.innerHTML=`
+        <h3>${d.name}</h3>
+        <div class="row">
+          <span class="note">濃度</span>
+          <select class="select js-conc"></select>
+          <span class="note">參考：${d.ref.min}–${d.ref.max} ${d.ref.unit}</span>
         </div>
-
-        <div class="row" style="margin-top:12px">
-          <div class="card" style="flex:1; padding:12px">
-            <div class="note">按體重劑量 → 速率</div>
-            <div class="row" style="margin-top:6px">
-              <input class="input js-doseW" style="width:120px" inputmode="decimal" placeholder="${drug.ref.type==='wt'? `${drug.ref.min}–${drug.ref.max}`:''}">
-              <span>${drug.unit==='ug'?'μg/kg/min':'U/kg/min'}</span>
-              <span class="note">× 體重 × 60 ÷ 濃度</span>
-            </div>
-            <div style="margin-top:6px">速率（mL/hr）：<b class="js-rateW"></b></div>
-            ${drug.ref.type==='wt' ? `<div class="note">參考：${drug.ref.min}–${drug.ref.max} ${drug.ref.unit}</div>`:''}
-          </div>
-
-          <div class="card" style="flex:1; padding:12px">
-            <div class="note">非體重劑量 → 速率</div>
-            <div class="row" style="margin-top:6px">
-              <input class="input js-doseN" style="width:120px" inputmode="decimal" placeholder="${drug.ref.type==='nonwt'? `${drug.ref.min}–${drug.ref.max}`:''}">
-              <span>${drug.unit==='ug'?'μg/min':'U/min'}</span>
-              <span class="note">× 60 ÷ 濃度</span>
-            </div>
-            <div style="margin-top:6px">速率（mL/hr）：<b class="js-rateN"></b></div>
-            ${drug.ref.type==='nonwt' ? `<div class="note">參考：${drug.ref.min}–${drug.ref.max} ${drug.ref.unit}</div>`:''}
-          </div>
+        <div class="row" style="margin-top:8px">
+          <input class="input js-dose" placeholder="輸入劑量" inputmode="decimal">
+          <button class="btn js-calc">計算</button>
+          <span class="note">速率（mL/hr）：</span><b class="js-rate"></b>
         </div>
-
-        <div class="card" style="padding:10px">
-          <div class="note" style="margin-bottom:6px">相容性</div>
-          <div class="row">
-            <span class="pill">${drug.compat.line}</span>
-            ${drug.compat.exclusive ? `<span class="pill" style="border-color:#fb7185;background:#ffe4e6">專管</span>`:''}
-            ${drug.compat.lightProtect ? `<span class="pill" style="border-color:#f59e0b;background:#fff7ed">避光</span>`:''}
-            ${drug.compat.coadmin.map(t=>`<span class="pill" style="border-color:#34d399;background:#ecfdf5">可共管：${t}</span>`).join('')}
-            ${drug.compat.avoid.map(t=>`<span class="pill" style="border-color:#fca5a5;background:#fee2e2">避免：${t}</span>`).join('')}
-          </div>
-          ${drug.compat.note ? `<div class="note" style="margin-top:6px">${drug.compat.note}</div>`:''}
-        </div>
-
-        <div class="note">${drug.notes}</div>
-      `;
-
-      // 濃度下拉
-      const sel = div.querySelector('.js-conc');
-      drug.concs.forEach(c=>{
-        const opt = document.createElement('option');
-        opt.value = c.value;
-        opt.textContent = c.label;
-        sel.appendChild(opt);
-      });
-
-      // 事件計算
-      const $doseW = div.querySelector('.js-doseW');
-      const $doseN = div.querySelector('.js-doseN');
-      const $rateW = div.querySelector('.js-rateW');
-      const $rateN = div.querySelector('.js-rateN');
-
-      function calc(){
-        const conc = parseFloat(sel.value);
-        const wt = parseFloat($('#weight').value);
-        // 體重路徑
-        const dW = parseFloat($doseW.value);
-        let rW;
-        if (Number.isFinite(dW) && Number.isFinite(conc) && conc>0 && Number.isFinite(wt) && wt>0){
-          rW = (dW * wt * 60) / conc;
-        }
-        // 非體重路徑
-        const dN = parseFloat($doseN.value);
-        let rN;
-        if (Number.isFinite(dN) && Number.isFinite(conc) && conc>0){
-          rN = (dN * 60) / conc;
-        }
-        $rateW.textContent = fmt(rW);
-        $rateN.textContent = fmt(rN);
-
-        // 超範圍標示
-        if (drug.ref.type==='wt'){
-          const warn = Number.isFinite(dW) && (dW<drug.ref.min || dW>drug.ref.max);
-          $doseW.classList.toggle('warn', warn);
-        }
-        if (drug.ref.type==='nonwt'){
-          const warn = Number.isFinite(dN) && (dN<drug.ref.min || dN>drug.ref.max);
-          $doseN.classList.toggle('warn', warn);
-        }
-      }
-
-      [$doseW, $doseN, $('#weight'), sel].forEach(el=>{
-        if (el) el.addEventListener('input', calc);
-      });
-      calc();
-
-      // 新增自訂濃度（儲存 localStorage）
-      div.querySelector('.js-add').addEventListener('click', ()=>{
-        const label = prompt('輸入標籤（例如：6 mg / 250 mL  (24 μg/mL)）');
-        if (!label) return;
-        const val = parseFloat(prompt('輸入濃度值（μg/mL 或 U/mL 的「數字」）')||'');
-        if (!Number.isFinite(val) || val<=0) return alert('請輸入正確的數字濃度');
-        const opt = document.createElement('option');
-        opt.value = val; opt.textContent = label;
-        sel.appendChild(opt); sel.value = val; calc();
-        try{
-          const saved = JSON.parse(localStorage.getItem('icu-concs')||'{}');
-          saved[drug.key] = saved[drug.key] || [];
-          saved[drug.key].push({label, value:val});
-          localStorage.setItem('icu-concs', JSON.stringify(saved));
-        }catch(e){}
-      });
-
-      // 載入自訂濃度
-      try{
-        const saved = JSON.parse(localStorage.getItem('icu-concs')||'{}')[drug.key] || [];
-        saved.forEach(c=>{
-          const opt = document.createElement('option');
-          opt.value = c.value; opt.textContent = c.label; sel.appendChild(opt);
-        });
-      }catch(e){}
-
-      return div;
+        <div class="note" style="margin-top:8px">相容性：${d.compat.line} ${d.compat.note}</div>`;
+      const sel=el.querySelector('.js-conc');
+      d.concs.forEach(c=>{const o=document.createElement('option');o.value=c.value;o.textContent=c.label;sel.appendChild(o)});
+      const dose=el.querySelector('.js-dose'),rate=el.querySelector('.js-rate');
+      el.querySelector('.js-calc').onclick=()=>{
+        const conc=parseFloat(sel.value),v=parseFloat(dose.value),wt=parseFloat($('#weight').value);
+        let r;
+        if(d.ref.type==="wt"&&wt>0)r=v*wt*60/conc;
+        else r=v*60/conc;
+        rate.textContent=fmt(r);
+      };
+      return el;
     }
 
-    // -------------------- 渲染 --------------------
-    const $cards = $('#cards');
-    DRUGS.forEach(d => $cards.appendChild(makeCard(d)));
+    DRUGS.forEach(d=>$('#cards').appendChild(makeCard(d)));
 
-    // -------------------- （可選）PWA 註冊 --------------------
-    if ('serviceWorker' in navigator){
+    if('serviceWorker' in navigator){
       navigator.serviceWorker.register('./sw.js').catch(()=>{});
     }
   </script>
 </body>
 </html>
-
