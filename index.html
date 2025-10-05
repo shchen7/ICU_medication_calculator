@@ -34,6 +34,7 @@
   </div>
 
   <script>
+  // ---- 藥物資料（含臨床建議劑量 + 可選濃度） ----
   const DRUGS = [
     { key:"Epi", name:"Epinephrine 腎上腺素", unit:"ug",
       concs:[{label:"1 mg / 100 mL (10 μg/mL)",value:10},{label:"5 mg / 250 mL (20 μg/mL)",value:20}],
@@ -65,6 +66,7 @@
   const $ = s => document.querySelector(s);
   const fmt = n => Number.isFinite(n)?(+n).toFixed(2).replace(/\.?0+$/,''):"";
 
+  // 依建議劑量範圍與濃度（及體重）計算建議速率 mL/hr
   function calcRange(drug, conc, wt){
     if (!conc) return "";
     const {min, max, type} = drug.ref;
@@ -85,16 +87,28 @@
 
     DRUGS.forEach(d => {
       const card = document.createElement("div"); card.className = "card";
+
+      // ✅ 補上藥名標題
+      const title = document.createElement("h3");
+      title.textContent = d.name;
+      card.appendChild(title);
+
+      // 建議劑量
+      const suggest = document.createElement("div");
+      suggest.innerHTML = `<b>建議劑量：</b>${d.ref.min}–${d.ref.max} ${d.ref.unit}（成人）`;
+      card.appendChild(suggest);
+
+      // 濃度下拉
       const sel = document.createElement("select"); sel.className = "select";
       d.concs.forEach(c => {
         const o = document.createElement("option");
         o.value = c.value; o.textContent = c.label;
         sel.appendChild(o);
       });
+      card.append("濃度：", sel);
+      card.appendChild(document.createElement("br"));
 
-      const suggest = document.createElement("div");
-      suggest.innerHTML = `<b>建議劑量：</b>${d.ref.min}–${d.ref.max} ${d.ref.unit}（成人）`;
-
+      // 建議速率（會隨體重/濃度變動）
       const rateLine = document.createElement("div");
       rateLine.className = "note";
       const upd = () => {
@@ -102,17 +116,16 @@
       };
       sel.onchange = upd;
       $("#weight").oninput = upd;
-
-      card.appendChild(suggest);
-      card.append("濃度：", sel);
-      card.appendChild(document.createElement("br"));
       card.appendChild(rateLine);
+
+      // 備註
       const note = document.createElement("div");
       note.className = "note";
       note.textContent = d.notes;
       card.appendChild(document.createElement("br"));
       card.appendChild(note);
 
+      // 初次更新
       upd();
       box.appendChild(card);
     });
@@ -125,17 +138,20 @@
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   }
 
-  // 🔄 強制刷新功能
+  // 🔄 強制刷新：清除 caches + 解除註冊 SW + 重新載入
   document.getElementById('refresh').addEventListener('click', async () => {
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      for (let key of keys) await caches.delete(key);
+    try{
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (let k of keys) await caches.delete(k);
+      }
+      if (navigator.serviceWorker) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (let r of regs) await r.unregister();
+      }
+    } finally {
+      location.reload(true);
     }
-    if (navigator.serviceWorker) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      for (let reg of regs) await reg.unregister();
-    }
-    location.reload(true);
   });
   </script>
 </body>
