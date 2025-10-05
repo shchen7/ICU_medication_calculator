@@ -12,8 +12,8 @@
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 16px rgba(0,0,0,.06)}
     .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
     .input,.select{border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:14px}
-    .note{font-size:14px;color:#0f172a}  
-    b { font-size: 16px; }
+    .note{font-size:14px;color:#0f172a}
+    .btn-refresh{border:1px solid #0f172a;border-radius:10px;padding:6px 10px;background:#0f172a;color:#fff;font-size:12px;cursor:pointer;}
   </style>
 </head>
 <body>
@@ -27,6 +27,7 @@
         <span>體重</span>
         <input id="weight" class="input" style="width:90px" inputmode="decimal" placeholder="60">
         <span>kg</span>
+        <button id="refresh" class="btn-refresh">🔄 強制刷新</button>
       </div>
     </div>
     <div id="cards"></div>
@@ -118,9 +119,24 @@
   }
 
   render();
+
+  // PWA Service Worker 註冊
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   }
+
+  // 🔄 強制刷新功能
+  document.getElementById('refresh').addEventListener('click', async () => {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      for (let key of keys) await caches.delete(key);
+    }
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (let reg of regs) await reg.unregister();
+    }
+    location.reload(true);
+  });
   </script>
 </body>
 </html>
