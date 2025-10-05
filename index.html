@@ -13,7 +13,14 @@
     .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
     .input,.select{border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:14px}
     .note{font-size:14px;color:#0f172a}
-    .btn-refresh{border:1px solid #0f172a;border-radius:10px;padding:6px 10px;background:#0f172a;color:#fff;font-size:12px;cursor:pointer;}
+    .hint{font-size:12px;color:#64748b}
+    .btn{border:1px solid #0f172a;border-radius:10px;padding:6px 10px;background:#0f172a;color:#fff;font-size:12px;cursor:pointer}
+    .col{display:flex;flex-direction:column;gap:6px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:800px){ .grid{grid-template-columns:1fr 1fr} }
+    h3{margin:0 0 6px 0}
+    b{font-size:16px}
+    .muted{opacity:.6}
   </style>
 </head>
 <body>
@@ -21,20 +28,20 @@
     <div class="row" style="justify-content:space-between">
       <div>
         <h1>ICU 急救藥物速率計算器</h1>
-        <div class="note">PWA · 可離線 · 建議劑量同步換算 mL/hr</div>
+        <div class="note">PWA · 建議劑量＋即時換算 mL/hr · 濃度可切換</div>
       </div>
       <div class="row">
         <span>體重</span>
         <input id="weight" class="input" style="width:90px" inputmode="decimal" placeholder="60">
         <span>kg</span>
-        <button id="refresh" class="btn-refresh">🔄 強制刷新</button>
+        <button id="refresh" class="btn">🔄 強制刷新</button>
       </div>
     </div>
     <div id="cards"></div>
   </div>
 
   <script>
-  // ---- 藥物資料（含臨床建議劑量 + 可選濃度） ----
+  // ---- 藥物資料（臨床建議劑量 + 可選濃度） ----
   const DRUGS = [
     { key:"Epi", name:"Epinephrine 腎上腺素", unit:"ug",
       concs:[{label:"1 mg / 100 mL (10 μg/mL)",value:10},{label:"5 mg / 250 mL (20 μg/mL)",value:20}],
@@ -47,6 +54,7 @@
       notes:"敗血性休克首選；嚴防外滲，末梢監測。"
     },
     { key:"Dopa", name:"Dopamine 多巴胺", unit:"ug",
+      // 院內配法：600 mg / 200 mL = 3000 μg/mL
       concs:[{label:"600 mg / 200 mL (3000 μg/mL)",value:3000}],
       ref:{min:5, max:20, unit:"μg/kg/min", type:"wt"},
       notes:"中高劑量具有 α 效應，需監控。"
@@ -66,74 +74,117 @@
   const $ = s => document.querySelector(s);
   const fmt = n => Number.isFinite(n)?(+n).toFixed(2).replace(/\.?0+$/,''):"";
 
-  // 依建議劑量範圍與濃度（及體重）計算建議速率 mL/hr
-  function calcRange(drug, conc, wt){
+  // 建議速率範圍 (mL/hr) from 建議劑量範圍
+  function calcSuggestRange(drug, conc, wt){
     if (!conc) return "";
     const {min, max, type} = drug.ref;
-    let rMin, rMax;
-    if (type === "wt" && wt > 0) {
-      rMin = min * wt * 60 / conc;
-      rMax = max * wt * 60 / conc;
+    if (type === "wt"){
+      if (!(wt>0)) return "請先輸入體重";
+      const rMin = min*wt*60/conc, rMax = max*wt*60/conc;
+      return `${fmt(rMin)}–${fmt(rMax)} mL/hr`;
     } else {
-      rMin = min * 60 / conc;
-      rMax = max * 60 / conc;
+      const rMin = min*60/conc, rMax = max*60/conc;
+      return `${fmt(rMin)}–${fmt(rMax)} mL/hr`;
     }
-    return `${fmt(rMin)}–${fmt(rMax)} mL/hr`;
+  }
+
+  function makeCard(d){
+    const card = document.createElement("div"); card.className = "card";
+    const title = document.createElement("h3"); title.textContent = d.name; card.appendChild(title);
+
+    // 建議劑量
+    const suggest = document.createElement("div");
+    suggest.innerHTML = `<b>建議劑量：</b>${d.ref.min}–${d.ref.max} ${d.ref.unit}（成人）`;
+    card.appendChild(suggest);
+
+    // 濃度下拉
+    const sel = document.createElement("select"); sel.className = "select";
+    d.concs.forEach(c => { const o=document.createElement("option"); o.value=c.value; o.textContent=c.label; sel.appendChild(o); });
+    card.append("濃度：", sel);
+
+    // 建議速率（同步）
+    const suggRate = document.createElement("div"); suggRate.className = "note";
+    card.appendChild(suggRate);
+
+    // 兩種即時換算（輸入劑量 → 速率）
+    const grid = document.createElement("div"); grid.className = "grid"; card.appendChild(grid);
+
+    // 體重型輸入
+    const colW = document.createElement("div"); colW.className = "col";
+    const wLabel = document.createElement("div"); wLabel.innerHTML = `<b>按體重劑量 → 速率</b>`;
+    const inpW = document.createElement("input"); inpW.className="input"; inpW.placeholder = d.ref.type==='wt' ? `${d.ref.min}–${d.ref.max}` : "";
+    inpW.inputMode = "decimal";
+    const outW = document.createElement("div"); outW.className="note";
+    const formulaW = document.createElement("div"); formulaW.className="hint";
+    colW.append(wLabel, inpW, outW, formulaW);
+
+    // 非體重輸入
+    const colN = document.createElement("div"); colN.className = "col";
+    const nLabel = document.createElement("div"); nLabel.innerHTML = `<b>非體重劑量 → 速率</b>`;
+    const inpN = document.createElement("input"); inpN.className="input"; inpN.placeholder = d.ref.type==='nonwt' ? `${d.ref.min}–${d.ref.max}` : "";
+    inpN.inputMode = "decimal";
+    const outN = document.createElement("div"); outN.className="note";
+    const formulaN = document.createElement("div"); formulaN.className="hint";
+    colN.append(nLabel, inpN, outN, formulaN);
+
+    grid.append(colW, colN);
+
+    // 備註
+    const note = document.createElement("div"); note.className="hint"; note.textContent = d.notes; card.appendChild(note);
+
+    // 計算函式（即時）
+    const updateAll = () => {
+      const conc = parseFloat(sel.value);
+      const wt = parseFloat($("#weight").value) || 0;
+
+      // 建議速率範圍（體重型沒填體重就明確提示）
+      const r = calcSuggestRange(d, conc, wt);
+      suggRate.textContent = `≈ 建議速率：${r}`;
+
+      // 路徑一：體重（μg/kg/min 或 U/kg/min）
+      const doseW = parseFloat(inpW.value);
+      if (Number.isFinite(doseW) && conc>0 && wt>0) {
+        const rateW = (doseW * wt * 60) / conc;
+        outW.textContent = `＝ ${fmt(rateW)} mL/hr`;
+      } else {
+        outW.textContent = d.ref.type==='wt' && !(wt>0) ? "＝ 請先輸入體重" : "＝";
+      }
+      const unitW = (d.unit === 'ug') ? 'μg/kg/min' : 'U/kg/min';
+      formulaW.textContent = `${unitW} × 體重(kg) × 60 ÷ 濃度(${d.unit==='ug'?'μg/mL':'U/mL'}) = mL/hr`;
+
+      // 路徑二：非體重（μg/min 或 U/min）
+      const doseN = parseFloat(inpN.value);
+      if (Number.isFinite(doseN) && conc>0) {
+        const rateN = (doseN * 60) / conc;
+        outN.textContent = `＝ ${fmt(rateN)} mL/hr`;
+      } else {
+        outN.textContent = "＝";
+      }
+      const unitN = (d.unit === 'ug') ? 'μg/min' : 'U/min';
+      formulaN.textContent = `${unitN} × 60 ÷ 濃度(${d.unit==='ug'?'μg/mL':'U/mL'}) = mL/hr`;
+
+      // 視覺提示：如果此藥是體重型，將非體重欄位淡化；反之亦然（避免誤用）
+      colN.classList.toggle('muted', d.ref.type==='wt');
+      colW.classList.toggle('muted', d.ref.type==='nonwt');
+    };
+
+    sel.addEventListener('change', updateAll);
+    $("#weight").addEventListener('input', updateAll);
+    inpW.addEventListener('input', updateAll);
+    inpN.addEventListener('input', updateAll);
+
+    updateAll();
+    return card;
   }
 
   function render(){
     const box = $("#cards"); box.innerHTML = "";
-    const wt = parseFloat($("#weight").value) || 0;
-
-    DRUGS.forEach(d => {
-      const card = document.createElement("div"); card.className = "card";
-
-      // ✅ 補上藥名標題
-      const title = document.createElement("h3");
-      title.textContent = d.name;
-      card.appendChild(title);
-
-      // 建議劑量
-      const suggest = document.createElement("div");
-      suggest.innerHTML = `<b>建議劑量：</b>${d.ref.min}–${d.ref.max} ${d.ref.unit}（成人）`;
-      card.appendChild(suggest);
-
-      // 濃度下拉
-      const sel = document.createElement("select"); sel.className = "select";
-      d.concs.forEach(c => {
-        const o = document.createElement("option");
-        o.value = c.value; o.textContent = c.label;
-        sel.appendChild(o);
-      });
-      card.append("濃度：", sel);
-      card.appendChild(document.createElement("br"));
-
-      // 建議速率（會隨體重/濃度變動）
-      const rateLine = document.createElement("div");
-      rateLine.className = "note";
-      const upd = () => {
-        rateLine.textContent = `≈ 建議速率：${calcRange(d, parseFloat(sel.value), wt)}`;
-      };
-      sel.onchange = upd;
-      $("#weight").oninput = upd;
-      card.appendChild(rateLine);
-
-      // 備註
-      const note = document.createElement("div");
-      note.className = "note";
-      note.textContent = d.notes;
-      card.appendChild(document.createElement("br"));
-      card.appendChild(note);
-
-      // 初次更新
-      upd();
-      box.appendChild(card);
-    });
+    DRUGS.forEach(d => box.appendChild(makeCard(d)));
   }
 
   render();
 
-  // PWA Service Worker 註冊
+  // PWA 註冊
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   }
@@ -156,3 +207,4 @@
   </script>
 </body>
 </html>
+
