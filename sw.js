@@ -1,4 +1,4 @@
-const CACHE = 'icu-cache-v1'; 
+const CACHE = 'icu-cache-v2'; 
 self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./','./index.html','./manifest.json'])));
