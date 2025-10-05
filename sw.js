@@ -1,20 +1,33 @@
-const CACHE = 'icu-cache-v2'; 
-self.addEventListener('install', e => {
+// sw.js
+const CACHE = 'icu-cache-v5';
+const CORE = [
+  './',
+  './index.html',
+  './manifest.json'
+];
+
+self.addEventListener('install', e=>{
+  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)));
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./','./index.html','./manifest.json'])));
-});
-self.addEventListener('activate', e => {
-  e.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
-    await self.clients.claim();
-  })());
 });
 
-self.addEventListener('fetch', e => {
-  if (e.request.mode === 'navigate') {
-    e.respondWith(fetch(e.request).catch(() => caches.match('./index.html')));
-    return;
-  }
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+self.addEventListener('activate', e=>{
+  e.waitUntil(
+    caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', e=>{
+  const req = e.request;
+  e.respondWith(
+    caches.match(req).then(r=> r || fetch(req).then(res=>{
+      // 動態緩存同源 GET（可省略）
+      if (req.method==='GET' && new URL(req.url).origin===location.origin) {
+        const copy = res.clone();
+        caches.open(CACHE).then(c=>c.put(req, copy));
+      }
+      return res;
+    }).catch(()=>caches.match('./index.html')))
+  );
 });
