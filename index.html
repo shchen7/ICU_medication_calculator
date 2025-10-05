@@ -136,8 +136,15 @@
     const u = (d.ref?.unit || "").toLowerCase();
     if (u.includes('/min')) return 60;
     if (u.includes('/hr')) return 1;
-    // 沒時間單位就保守：仍以 60 處理（維持原行為）
+    // 沒時間單位就保守：維持 60（原行為）
     return 60;
+  }
+
+  // 顯示在輸入框旁的「劑量單位」一律以 ref.unit 為準（Perdipine = mg/hr）
+  function doseDisplayUnit(d){
+    if (d.ref && d.ref.unit) return d.ref.unit;
+    const b = baseUnitSymbol(d);
+    return d.ref?.type === 'wt' ? `${b}/kg/min` : `${b}/min`;
   }
 
   function suggestRateText(d, conc, wt){
@@ -168,7 +175,7 @@
     (d.diluents||[]).forEach(x=>{ const t=document.createElement('span'); t.className='pill'; t.textContent=x; dil.appendChild(t); });
     card.appendChild(dil);
 
-    // 建議劑量
+    // 建議劑量（顯示 ref.unit）
     const suggest = document.createElement('div');
     suggest.innerHTML = `<b>建議劑量：</b>${d.ref.min}–${d.ref.max} ${d.ref.unit}（成人）`;
     card.appendChild(suggest);
@@ -205,7 +212,7 @@
       wRow.append(wLab, wIn, wU);
       box.appendChild(wRow);
 
-      dUnit.textContent = doseUnitPerMin(d, true);
+      dUnit.textContent = doseDisplayUnit(d);
       doseRow.append(dInp, dUnit);
       rateRow.append(rInp, rUnit);
       box.appendChild(doseRow);
@@ -240,7 +247,7 @@
       updateSuggest();
     } else {
       // 非體重型
-      dUnit.textContent = doseUnitPerMin(d, false);
+      dUnit.textContent = doseDisplayUnit(d);
       doseRow.append(dInp, dUnit);
       rateRow.append(rInp, rUnit);
       box.appendChild(doseRow);
@@ -271,12 +278,12 @@
       updateSuggest();
     }
 
-    // 公式提示（用 tf 顯示正確數字）
+    // 公式提示（用 tf 與正確顯示單位）
     const formula = document.createElement('div'); formula.className='hint';
     const tfTxt = timeFactor(d);
     formula.textContent = (d.ref.type==='wt')
-      ? `${doseUnitPerMin(d,true)} ↔ mL/hr（mL/hr = 劑量 × 體重 × ${tfTxt} ÷ 濃度；劑量 = mL/hr × 濃度 ÷ (${tfTxt} × 體重)）`
-      : `${doseUnitPerMin(d,false)} ↔ mL/hr（mL/hr = 劑量 × ${tfTxt} ÷ 濃度；劑量 = mL/hr × 濃度 ÷ ${tfTxt}）`;
+      ? `${doseDisplayUnit(d)} ↔ mL/hr（mL/hr = 劑量 × 體重 × ${tfTxt} ÷ 濃度；劑量 = mL/hr × 濃度 ÷ (${tfTxt} × 體重)）`
+      : `${doseDisplayUnit(d)} ↔ mL/hr（mL/hr = 劑量 × ${tfTxt} ÷ 濃度；劑量 = mL/hr × 濃度 ÷ ${tfTxt}）`;
     box.appendChild(formula);
 
     card.appendChild(box);
