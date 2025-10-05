@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ICU 急救藥物速率計算器（單檔版）</title>
+  <title>ICU 急救藥物速率計算器（單檔重寫版）</title>
+  <!-- 若已放 PWA 檔，這兩行請保留；沒有可先忽略，畫面一樣能跑 -->
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
   <style>
     *{box-sizing:border-box} body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f8fafc;color:#0f172a;margin:0}
     .wrap{max-width:960px;margin:24px auto;padding:16px}
@@ -25,7 +28,7 @@
     <div class="row" style="justify-content:space-between">
       <div>
         <h1>ICU 急救藥物速率計算器</h1>
-        <div class="note">單檔版 · 免安裝 · 可直接部署 GitHub Pages</div>
+        <div class="note">單檔版 · 免框架 · 支援自訂濃度與相容性提示</div>
       </div>
       <div class="row">
         <span>體重</span>
@@ -45,20 +48,24 @@
   </div>
 
   <script>
-    // -------------------- 資料（可依院內調整） --------------------
+    // -------------------- 初始資料（依妳之前偏好重寫） --------------------
     const DRUGS = [
       {
         key: "Epinephrine", name: "Epinephrine 腎上腺素", unit: "ug",
-        concs: [{label:"1 mg / 100 mL  (10 μg/mL)",value:10},{label:"4 mg / 250 mL  (16 μg/mL)",value:16}],
+        // 妳改過：10、20 μg/mL
+        concs: [{label:"1 mg / 100 mL  (10 μg/mL)",value:10},{label:"5 mg / 250 mL  (20 μg/mL)",value:20}],
+        // 參考走「非體重」路徑：μg/min
         ref: {type:"nonwt", min:2, max:10, unit:"μg/min"},
         compat: {line:"CVC 優先（PIV 可短暫）", exclusive:true, lightProtect:false, coadmin:["NS","D5W"], avoid:["鹼性藥物"], note:"外滲風險，監測末梢灌流"},
         notes:"ACLS 休克輔助；周邊僅暫用，優先 CVC。"
       },
       {
         key: "Norepinephrine", name: "Norepinephrine 正腎上腺素", unit: "ug",
+        // 妳改過：32、64 μg/mL
         concs: [{label:"8 mg / 250 mL  (32 μg/mL)",value:32},{label:"16 mg / 250 mL  (64 μg/mL)",value:64}],
-        ref: {type:"wt", min:0.05, max:30, unit:"μg/min"},
-        compat: {line:"16mg僅建議使用於有CVC病患",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["與血製劑同管"],note:"嚴防外滲；末梢灌流監測"},
+        // 安全起見，參考仍用 μg/kg/min（臨床常見），但可自由輸入
+        ref: {type:"wt", min:0.05, max:1.0, unit:"μg/kg/min"},
+        compat: {line:"16 mg 僅建議 CVC（PIV 可短暫）",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["與血製劑同管"],note:"嚴防外滲；末梢灌流監測"},
         notes:"敗血性休克首選升壓劑；嚴防外滲。"
       },
       {
@@ -77,7 +84,8 @@
       },
       {
         key:"Vasopressin", name:"Vasopressin 加壓素", unit:"unit",
-        concs:[{label:"20 U / 100 mL  (0.2 U/mL)",value:0.2},{label:"40 U / 100 mL  (0.4 U/mL)",value:0.4}],
+        // 妳改過：0.4 U/mL
+        concs:[{label:"40 U / 100 mL  (0.4 U/mL)",value:0.4}],
         ref:{type:"nonwt",min:0.01,max:0.04,unit:"U/min"},
         compat:{line:"CVC",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["與多數藥共管"],note:"勿滴定 >0.04 U/min；末梢灌流風險"},
         notes:"NE 佐藥；不建議滴定 >0.04 U/min。"
@@ -190,7 +198,7 @@
       });
       calc();
 
-      // 新增自訂濃度
+      // 新增自訂濃度（儲存 localStorage）
       div.querySelector('.js-add').addEventListener('click', ()=>{
         const label = prompt('輸入標籤（例如：6 mg / 250 mL  (24 μg/mL)）');
         if (!label) return;
@@ -199,7 +207,6 @@
         const opt = document.createElement('option');
         opt.value = val; opt.textContent = label;
         sel.appendChild(opt); sel.value = val; calc();
-        // 儲存到 localStorage
         try{
           const saved = JSON.parse(localStorage.getItem('icu-concs')||'{}');
           saved[drug.key] = saved[drug.key] || [];
@@ -223,6 +230,12 @@
     // -------------------- 渲染 --------------------
     const $cards = $('#cards');
     DRUGS.forEach(d => $cards.appendChild(makeCard(d)));
+
+    // -------------------- （可選）PWA 註冊 --------------------
+    if ('serviceWorker' in navigator){
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
   </script>
 </body>
 </html>
+
