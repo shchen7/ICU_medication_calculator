@@ -1,12 +1,21 @@
 {
-  "name": "ICU藥物速率計算器",
-  "short_name": "ICU速率",
-  "start_url": ".",
+  "name": "ICU 藥物速率計算器",
+  "short_name": "ICU Calc",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#f8fafc",
   "theme_color": "#0f172a",
+  "description": "台灣加護病房常見急救藥物速率換算工具，可自訂濃度與院內設定。",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
