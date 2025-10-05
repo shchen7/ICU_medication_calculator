@@ -69,7 +69,7 @@
   // unit: 'ug' = 微克; 'mg' = 毫克; 'unit' = U（生物單位）
   // concs[].value 的單位要與 unit 對應（ug/mL, mg/mL, U/mL）
   // ref.unit 只用來顯示（不改變計算），計算依據 unit 與 type
-  // diluents: 可用溶媒陣列，支援 'NS' / 'D5W'（可在管理面板勾選）
+  // diluents: 可用溶液陣列，支援 'NS' / 'D5W'（可在管理面板勾選）
   const DEFAULT = [
     // 1) Norepinephrine (Levophed) — 非體重型，2–30 μg/min
     { key:"NE", name:"Norepinephrine (Levophed) 正腎上腺素", unit:"ug",
@@ -195,9 +195,9 @@
     const card = document.createElement('div'); card.className='card';
     const title = document.createElement('h3'); title.textContent = d.name; card.appendChild(title);
 
-    // 可用溶媒顯示
+    // 可用溶液顯示
     const dil = document.createElement('div'); dil.className='chips';
-    const label = document.createElement('div'); label.className='hint'; label.textContent = '可用溶媒：';
+    const label = document.createElement('div'); label.className='hint'; label.textContent = '可用溶液：';
     dil.appendChild(label);
     (d.diluents||[]).forEach(x=>{
       const t=document.createElement('span'); t.className='pill'; t.textContent=x; dil.appendChild(t);
@@ -290,7 +290,7 @@
     model.forEach(d => box.appendChild(makeCard(d)));
   }
 
-  // ===== 管理面板（表單化，含溶媒勾選） =====
+  // ===== 管理面板（表單化，含溶液勾選） =====
   function openManage(){ $('#modal').classList.add('open'); renderList(); }
   function closeManage(){ $('#modal').classList.remove('open'); }
 
@@ -337,7 +337,7 @@
 
     const notes = document.createElement('textarea'); notes.className='input'; notes.value=d.notes||''; notes.rows=3;
 
-    // 溶媒勾選
+    // 溶液勾選
     const dilWrap = document.createElement('div');
     const cbNS = document.createElement('input'); cbNS.type='checkbox';
     const labNS = document.createElement('span'); labNS.textContent='NS';
