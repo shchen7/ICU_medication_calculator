@@ -30,8 +30,8 @@
   <div class="wrap">
     <div class="row" style="justify-content:space-between">
       <div>
-        <h1>ICU 急救藥物速率計算器</h1>
-        <div class="note">建議劑量＋<b>雙向換算</b>（劑量 ↔ mL/hr）· 濃度可切換 · 可視化管理 · 可用溶液（NS/D5W）</div>
+        <h1>ICU藥物速率計算器</h1>
+        <div class="note">建議劑量＋<b>雙向換算</b>（劑量 ↔ mL/hr）· 濃度可切換 · 可視化管理 · 可用溶液（D5W/NS）</div>
       </div>
       <div class="row">
         <button id="manage" class="btn-ghost">管理</button>
@@ -72,8 +72,8 @@
     { key:"NE", name:"Norepinephrine (Levophed) 正腎上腺素", unit:"ug",
       concs:[{label:"8 mg / 250 mL (32 μg/mL)", value:32},{label:"16 mg / 250 mL (64 μg/mL)", value:64}],
       ref:{min:2, max:30, unit:"μg/min", type:"nonwt"},
-      diluents:["NS","D5W"],
-      notes:"建議 CVC；周邊僅暫用並嚴密監測外滲。"
+      diluents:["D5W"],
+      notes:"16mg僅限於有CVC的病患；無論濃度，皆須嚴密監測外滲。"
     },
     { key:"Vaso", name:"Vasopressin (Pitressin) 加壓素", unit:"unit",
       concs:[{label:"40 U / 100 mL (0.4 U/mL)", value:0.4}],
@@ -84,14 +84,14 @@
     { key:"Epi", name:"Epinephrine (Adrenalin) 腎上腺素", unit:"ug",
       concs:[{label:"1 mg / 100 mL (10 μg/mL)", value:10},{label:"5 mg / 250 mL (20 μg/mL)", value:20}],
       ref:{min:2, max:10, unit:"μg/min", type:"nonwt"},
-      diluents:["NS","D5W"],
-      notes:"依反應滴定；周邊僅暫用，優先 CVC。"
+      diluents:["NS"],
+      notes:"通常於Levophed及Vasopressin使用後仍血壓不穩方使用，但仍依科別可能會有習慣順序；周邊僅暫用，優先 CVC。"
     },
     { key:"Dopa", name:"Dopamine (Gipamine) 多巴胺", unit:"ug",
       concs:[{label:"600 mg / 200 mL (3000 μg/mL)", value:3000}],
       ref:{min:5, max:20, unit:"μg/kg/min", type:"wt"},
-      diluents:["NS","D5W"],
-      notes:"5–10 μg/kg/min 以 β 效應為主；10–20 μg/kg/min α 效應↑。"
+      diluents:["D5W"],
+      notes:"5–10 μg/kg/min 以 β 效應為主；10–20 μg/kg/min α 效應增加。"
     },
     { key:"Dobu", name:"Dobutamine (GENDOBU) 多巴酚丁胺", unit:"ug",
       concs:[{label:"250 mg / 250 mL (1000 μg/mL)", value:1000},{label:"500 mg / 250 mL (2000 μg/mL)", value:2000}],
@@ -108,7 +108,7 @@
     { key:"Nica", name:"Nicardipine (Perdipine) 尼卡地平", unit:"mg",
       concs:[{label:"5 amp in 200 mL → 50 mg / 250 mL (0.2 mg/mL)", value:0.2}],
       ref:{min:5, max:15, unit:"mg/hr", type:"nonwt"},
-      diluents:["NS","D5W"],
+      diluents:["NS"],
       notes:"5 mg/hr 起，每 5–15 分鐘加 2.5 mg/hr，最大 15 mg/hr。"
     },
     { key:"NTG", name:"Nitroglycerin (Millistrol) 硝酸甘油", unit:"ug",
