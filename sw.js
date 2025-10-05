@@ -1,33 +1,32 @@
-// sw.js
-const CACHE = 'icu-cache-v5';
-const CORE = [
-  './',
-  './index.html',
-  './manifest.json'
+const CACHE_NAME = "icu-cache-v5";
+const urlsToCache = [
+  "./",
+  "./index.html",
+  "./manifest.json"
 ];
 
-self.addEventListener('install', e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)));
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', e=>{
-  e.waitUntil(
-    caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
-  );
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', e=>{
-  const req = e.request;
-  e.respondWith(
-    caches.match(req).then(r=> r || fetch(req).then(res=>{
-      // 動態緩存同源 GET（可省略）
-      if (req.method==='GET' && new URL(req.url).origin===location.origin) {
-        const copy = res.clone();
-        caches.open(CACHE).then(c=>c.put(req, copy));
-      }
-      return res;
-    }).catch(()=>caches.match('./index.html')))
+// 安裝：預先快取檔案
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
 });
+
+// 啟動：清除舊版本快取
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.map(k => k !== CACHE_NAME && caches.delete(k)))
+    )
+  );
+});
+
+// 擷取：離線支援
+self.addEventListener("fetch", event => {
+  event.respondWith(
+    caches.match(event.request).then(response =>
+      response || fetch(event.request)
+    )
+  );
+});
+
