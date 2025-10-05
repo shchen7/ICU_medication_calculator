@@ -104,9 +104,9 @@
     },
     { key:"Nica", name:"Nicardipine (Perdipine) 尼卡地平", unit:"mg",
       concs:[{label:"5 amp in 200 mL → 50 mg / 250 mL (0.2 mg/mL)", value:0.2}],
-      ref:{min:5, max:15, unit:"mg/hr", type:"nonwt"},
+      ref:{min:3, max:15, unit:"mg/hr", type:"nonwt"},
       diluents:["NS"],
-      notes:"5 mg/hr 起，每 5–15 分鐘加 2.5 mg/hr，最大 15 mg/hr。"
+      notes:"3–15 mg/hr；5 mg/hr 起，每 5–15 分鐘加 2.5 mg/hr，最大 15 mg/hr。"
     },
     { key:"NTG", name:"Nitroglycerin (Millistrol) 硝酸甘油", unit:"ug",
       concs:[
@@ -130,15 +130,28 @@
   function baseUnitSymbol(drug){ if (drug.unit==='ug') return 'μg'; if (drug.unit==='mg') return 'mg'; if (drug.unit==='unit') return 'U'; return ''; }
   function doseUnitPerMin(drug, byWeight){ const b=baseUnitSymbol(drug); return byWeight?`${b}/kg/min`:`${b}/min`; }
   function concUnitPerMl(drug){ const b=baseUnitSymbol(drug); return `${b}/mL`; }
+
+  // 依顯示單位決定是否乘 60（/min→×60，/hr→×1）
+  function timeFactor(d){
+    const u = (d.ref?.unit || "").toLowerCase();
+    if (u.includes('/min')) return 60;
+    if (u.includes('/hr')) return 1;
+    // 沒時間單位就保守：仍以 60 處理（維持原行為）
+    return 60;
+  }
+
   function suggestRateText(d, conc, wt){
     if (!conc) return "";
     const {min, max, type} = d.ref;
+    const tf = timeFactor(d);
     if (type==='wt'){
       if (!(wt>0)) return "請先輸入體重";
-      const rMin=min*wt*60/conc, rMax=max*wt*60/conc;
+      const rMin = (min * wt * tf) / conc;
+      const rMax = (max * wt * tf) / conc;
       return `${fmt(rMin)}–${fmt(rMax)} mL/hr`;
     } else {
-      const rMin=min*60/conc, rMax=max*60/conc;
+      const rMin = (min * tf) / conc;
+      const rMax = (max * tf) / conc;
       return `${fmt(rMin)}–${fmt(rMax)} mL/hr`;
     }
   }
@@ -207,14 +220,15 @@
       const sync = ()=>{
         const conc = parseFloat(sel.value);
         const wt = parseFloat(wIn.value)||0;
+        const tf = timeFactor(d);
         if (!(conc>0)) return;
         if (lastEdited==='dose'){
           const dose = parseFloat(dInp.value);
-          if (Number.isFinite(dose) && wt>0) rInp.value = fmt(dose*wt*60/conc);
+          if (Number.isFinite(dose) && wt>0) rInp.value = fmt(dose*wt*tf/conc); // mL/hr = 劑量 × 體重 × tf ÷ 濃度
           else if (!wt) rInp.value = '';
         } else if (lastEdited==='rate'){
           const rate = parseFloat(rInp.value);
-          if (Number.isFinite(rate) && wt>0) dInp.value = fmt(rate*conc/(60*wt));
+          if (Number.isFinite(rate) && wt>0) dInp.value = fmt(rate*conc/(tf*wt)); // 劑量 = mL/hr × 濃度 ÷ (tf × 體重)
           else if (!wt) dInp.value = '';
         }
       };
@@ -239,13 +253,14 @@
 
       const sync = ()=>{
         const conc = parseFloat(sel.value);
+        const tf = timeFactor(d);
         if (!(conc>0)) return;
         if (lastEdited==='dose'){
           const dose = parseFloat(dInp.value);
-          if (Number.isFinite(dose)) rInp.value = fmt(dose*60/conc);
+          if (Number.isFinite(dose)) rInp.value = fmt(dose*tf/conc); // mL/hr = 劑量 × tf ÷ 濃度
         } else if (lastEdited==='rate'){
           const rate = parseFloat(rInp.value);
-          if (Number.isFinite(rate)) dInp.value = fmt(rate*conc/60);
+          if (Number.isFinite(rate)) dInp.value = fmt(rate*conc/tf); // 劑量 = mL/hr × 濃度 ÷ tf
         }
       };
 
@@ -256,11 +271,12 @@
       updateSuggest();
     }
 
-    // 公式提示
+    // 公式提示（用 tf 顯示正確數字）
     const formula = document.createElement('div'); formula.className='hint';
+    const tfTxt = timeFactor(d);
     formula.textContent = (d.ref.type==='wt')
-      ? `${doseUnitPerMin(d,true)} ↔ mL/hr（mL/hr = 劑量 × 體重 × 60 ÷ 濃度；劑量 = mL/hr × 濃度 ÷ (60 × 體重)）`
-      : `${doseUnitPerMin(d,false)} ↔ mL/hr（mL/hr = 劑量 × 60 ÷ 濃度；劑量 = mL/hr × 濃度 ÷ 60）`;
+      ? `${doseUnitPerMin(d,true)} ↔ mL/hr（mL/hr = 劑量 × 體重 × ${tfTxt} ÷ 濃度；劑量 = mL/hr × 濃度 ÷ (${tfTxt} × 體重)）`
+      : `${doseUnitPerMin(d,false)} ↔ mL/hr（mL/hr = 劑量 × ${tfTxt} ÷ 濃度；劑量 = mL/hr × 濃度 ÷ ${tfTxt}）`;
     box.appendChild(formula);
 
     card.appendChild(box);
@@ -312,7 +328,7 @@
     unit.value = d.unit;
 
     const type = document.createElement('select'); type.className='select';
-    [['wt','體重型（*/kg/min）'],['nonwt','非體重型（*/min）']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; type.appendChild(o); });
+    [['wt','體重型（*/kg/min）'],['nonwt','非體重型（*/min 或 */hr）']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; type.appendChild(o); });
     type.value = d.ref.type;
 
     const rmin = document.createElement('input'); rmin.className='input'; rmin.inputMode='decimal'; rmin.value=d.ref.min;
@@ -450,5 +466,4 @@
   </script>
 </body>
 </html>
-
 
