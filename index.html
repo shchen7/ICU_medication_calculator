@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ICU 急救藥物速率計算器</title>
+  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
+  <style>
+    body{font-family:system-ui,sans-serif;background:#f8fafc;color:#0f172a;margin:0}
+    .wrap{max-width:1000px;margin:24px auto;padding:16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+    .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+    .input,.select{border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:14px}
+    .btn{border:1px solid #0f172a;border-radius:10px;padding:6px 10px;background:#0f172a;color:#fff;font-size:12px;cursor:pointer}
+    .btn-ghost{border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer}
+    .note{font-size:12px;color:#64748b}
+    .warn{border-color:#ef4444;background:#fee2e2}
+    .pill{border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;font-size:12px;background:#f1f5f9}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:20px}
+    .modal.open{display:flex}
+    .panel{width:min(900px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:20px;border:1px solid #e5e7eb}
+    .hr{height:1px;background:#e5e7eb;margin:12px 0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <h1>ICU 急救藥物速率計算器</h1>
+        <div class="note">PWA · 可離線 · 雙單位 · 可自訂藥物</div>
+      </div>
+      <div class="row">
+        <span>體重</span>
+        <input id="weight" class="input" style="width:90px" inputmode="decimal" placeholder="60">
+        <span>kg</span>
+        <button class="btn-ghost" id="manage">管理</button>
+      </div>
+    </div>
+    <div id="cards"></div>
+    <div class="card"><div class="note">臨床安全提醒：僅供教學與提醒，實務請依院內SOP。</div></div>
+  </div>
+
+  <div id="modal" class="modal">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">藥物管理</h3>
+        <button class="btn" id="close">關閉</button>
+      </div>
+      <div id="list"></div>
+      <div class="hr"></div>
+      <button class="btn" id="add">＋ 新增藥物</button>
+    </div>
+  </div>
+
+  <script>
+  const KEY="icu-drugs-v3";
+  const DEFAULT=[{
+    key:"Epi",name:"Epinephrine 腎上腺素",unit:"ug",
+    concs:[{label:"1 mg / 100 mL (10 μg/mL)",value:10},{label:"5 mg / 250 mL (20 μg/mL)",value:20}],
+    ref:{type:"nonwt",min:2,max:10,unit:"μg/min"},
+    compat:{line:"CVC 優先（PIV 可短暫）",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["鹼性藥"],note:"外滲風險，監測末梢灌流"},
+    notes:"ACLS 休克輔助。"
+  },{
+    key:"NE",name:"Norepinephrine (Levophed) 正腎上腺素",unit:"ug",
+    concs:[{label:"8 mg / 250 mL (32 μg/mL)",value:32},{label:"16 mg / 250 mL (64 μg/mL)",value:64}],
+    ref:{type:"wt",min:0.05,max:1.0,unit:"μg/kg/min"},
+    compat:{line:"CVC 建議，PIV 僅暫用",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["血製劑"],note:"嚴防外滲，末梢監測"},
+    notes:"敗血性休克首選升壓劑。"
+  },{
+    key:"Vaso",name:"Vasopressin 加壓素",unit:"unit",
+    concs:[{label:"40 U / 100 mL (0.4 U/mL)",value:0.4}],
+    ref:{type:"nonwt",min:0.01,max:0.04,unit:"U/min"},
+    compat:{line:"CVC",exclusive:true,lightProtect:false,coadmin:["NS","D5W"],avoid:["多數藥"],note:"勿滴定>0.04 U/min"},
+    notes:"NE 佐藥，不建議滴定超標。"
+  }];
+
+  const $=s=>document.querySelector(s);const fmt=n=>Number.isFinite(n)?(+n).toFixed(3).replace(/\.?0+$/,''):"";
+  let model=load(); render();
+
+  function load(){try{const x=JSON.parse(localStorage.getItem(KEY));return Array.isArray(x)&&x.length?x:DEFAULT}catch{return DEFAULT}}
+  function save(){localStorage.setItem(KEY,JSON.stringify(model))}
+
+  function render(){
+    const box=$("#cards");box.innerHTML="";
+    model.forEach(d=>box.appendChild(makeCard(d)));
+  }
+
+  function makeCard(d){
+    const c=document.createElement("div");c.className="card";
+    const sel=document.createElement("select");sel.className="select";
+    d.concs.forEach(v=>{const o=document.createElement("option");o.value=v.value;o.textContent=v.label;sel.appendChild(o)});
+    const iW=document.createElement("input"),iN=document.createElement("input");
+    iW.className=iN.className="input";iW.placeholder=iN.placeholder="劑量";iW.inputMode=iN.inputMode="decimal";
+    const rW=document.createElement("b"),rN=document.createElement("b");
+    const calc=()=>{const conc=parseFloat(sel.value),w=parseFloat($("#weight").value),vW=parseFloat(iW.value),vN=parseFloat(iN.value);
+      let RW,RN;if(Number.isFinite(vW)&&Number.isFinite(w)&&w>0&&conc>0)RW=vW*w*60/conc;if(Number.isFinite(vN)&&conc>0)RN=vN*60/conc;
+      rW.textContent=fmt(RW);rN.textContent=fmt(RN);};
+    [sel,iW,iN,$("#weight")].forEach(x=>x&&x.addEventListener("input",calc));
+    c.innerHTML=`<h3>${d.name}</h3>`;
+    c.append("濃度：",sel,document.createElement("br"),
+      "體重劑量→速率：",iW," ",d.unit==="ug"?"μg/kg/min":"U/kg/min"," = ",rW," mL/hr",document.createElement("br"),
+      "非體重劑量→速率：",iN," ",d.unit==="ug"?"μg/min":"U/min"," = ",rN," mL/hr",document.createElement("br"),
+      "相容性：",d.compat.line," ",d.compat.note?d.compat.note:"");
+    calc();return c;
+  }
+
+  // ---- 管理 ----
+  $("#manage").onclick=()=>{$("#modal").classList.add("open");renderList()};
+  $("#close").onclick=()=>$("#modal").classList.remove("open");
+  $("#add").onclick=()=>{model.push({key:"New"+Date.now(),name:"新藥",unit:"ug",concs:[{label:"1mg/100mL(10)",value:10}],ref:{type:"wt",min:1,max:10,unit:"μg/kg/min"},compat:{line:"CVC",exclusive:false,lightProtect:false,coadmin:[],avoid:[],note:""},notes:""});save();renderList();};
+
+  function renderList(){
+    const L=$("#list");L.innerHTML="";
+    model.forEach((d,i)=>{
+      const row=document.createElement("div");row.className="card";
+      row.innerHTML=`<b>${d.name}</b> (${d.key})<br><span class="note">${d.concs.map(x=>x.label).join("、")}</span>`;
+      const bEdit=document.createElement("button");bEdit.className="btn-ghost";bEdit.textContent="編輯";
+      const bDel=document.createElement("button");bDel.className="btn-ghost";bDel.textContent="刪除";
+      bEdit.onclick=()=>edit(i);bDel.onclick=()=>{if(confirm("確定刪除？")){model.splice(i,1);save();renderList();render();}};
+      row.append(document.createElement("br"),bEdit,bDel);L.appendChild(row);
+    });
+  }
+
+  function edit(i){
+    const d=model[i];
+    const name=prompt("藥名",d.name);if(!name)return;
+    const concs=prompt("濃度設定(JSON)",JSON.stringify(d.concs));try{d.concs=JSON.parse(concs)}catch{alert("格式錯誤");return}
+    d.name=name;save();renderList();render();
+  }
+
+  if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+  </script>
+</body>
+</html>
