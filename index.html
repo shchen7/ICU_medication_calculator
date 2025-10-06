@@ -451,17 +451,25 @@
 
   // ===== 一鍵分享連結（免雲端） =====
   // 產生可分享連結：把 model 壓到 URL hash（#d=...）
-  document.getElementById('share').addEventListener('click', ()=>{
-    try{
-      const payload = encodeURIComponent(JSON.stringify(model));
-      const b64 = btoa(payload);
-      const url = `${location.origin}${location.pathname}#d=${b64}`;
-      navigator.clipboard?.writeText(url);
-      alert('已產生並複製連結！把這個網址貼給同事即可。');
-    }catch(e){
-      alert('產生分享連結失敗：資料過大或瀏覽器限制');
-    }
-  });
+ document.getElementById('share').addEventListener('click', async ()=>{
+  try {
+    const payload = encodeURIComponent(JSON.stringify(model));
+    const b64 = btoa(payload);
+    const longUrl = `${location.origin}${location.pathname}#d=${b64}`;
+
+    // 呼叫 TinyURL API 產生短網址
+    const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+    const shortUrl = await fetch(apiUrl).then(r => r.text()).catch(()=> longUrl);
+
+    // 複製短網址到剪貼簿
+    await navigator.clipboard?.writeText(shortUrl);
+    alert(`✅ 已產生短網址並複製：\n${shortUrl}`);
+  } catch (e) {
+    console.error(e);
+    alert('❌ 產生分享連結失敗（可能是資料太大或網路問題）');
+  }
+});
+
 
   // 若以 #d= 開啟 → 自動匯入並清掉 hash
   (function(){
