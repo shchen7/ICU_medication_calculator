@@ -329,10 +329,10 @@
 
       const btnRow = document.createElement('div'); btnRow.className='row'; btnRow.style.marginTop='8px';
 
-      const btnUp   = document.createElement('button'); btnUp.className='btn-ghost'; btnUp.textContent='⬆ 上移';
-      const btnDown = document.createElement('button'); btnDown.className='btn-ghost'; btnDown.textContent='⬇ 下移';
-      const btnE    = document.createElement('button'); btnE.className='btn-ghost'; btnE.textContent='編輯';
-      const btnD    = document.createElement('button'); btnD.className='btn-ghost'; btnD.textContent='刪除';
+      const btnUp   = document.createElement('button'); btnUp.className='btn'; btnUp.textContent='⬆ 上移';
+      const btnDown = document.createElement('button'); btnDown.className='btn'; btnDown.textContent='⬇ 下移';
+      const btnE    = document.createElement('button'); btnE.className='btn'; btnE.textContent='編輯';
+      const btnD    = document.createElement('button'); btnD.className='btn'; btnD.textContent='刪除';
 
       btnUp.onclick   = ()=> moveDrug(i, -1);
       btnDown.onclick = ()=> moveDrug(i, +1);
