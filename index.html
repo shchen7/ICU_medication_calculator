@@ -52,24 +52,27 @@
     <div class="card"><div class="hint">臨床安全提醒：本工具僅供提醒；最終仍以院內處方集 / 醫囑 / SOP 為準。</div></div>
   </div>
 
-  <!-- 管理面板 -->
-  <div id="modal" class="modal">
-    <div class="panel">
-      <div class="row" style="justify-content:space-between">
-        <h3 style="margin:0">藥物清單管理</h3>
-        <div class="row">
-          <button id="theme-toggle" class="btn">🌙 深色模式</button>
-          <button id="export" class="btn">匯出</button>
-          <button id="import" class="btn">匯入</button>
-          <button id="close" class="btn">關閉</button>
-        </div>
+ <!-- 管理面板（覆蓋本段） -->
+<div id="modal" class="modal">
+  <div class="panel">
+    <div class="row" style="justify-content:space-between">
+      <h3 style="margin:0">藥物清單管理</h3>
+      <div class="row">
+        <button id="theme-toggle" class="btn">🌙 深色模式</button>
+        <button id="export" class="btn">匯出</button>
+        <button id="import" class="btn">匯入</button>
+        <button id="close" class="btn">關閉</button>
       </div>
-      <div class="hint">本機快取（localStorage: <code>icu-drugs-v12</code>）。可於此面板排序藥物。</div>
-      <div id="list" style="margin-top:10px"></div>
-      <div class="hr"></div>
-      <button id="add" class="btn">＋ 新增藥物</button>
     </div>
+
+    <div class="hint">本機快取（localStorage: <code>icu-drugs-v12</code>）。可在此：新增、編輯、排序（上移/下移）。</div>
+
+    <div id="list" style="margin-top:10px"></div>
+
+    <div class="hr"></div>
+    <button id="add" class="btn">＋ 新增藥物</button>
   </div>
+</div>
 
   <script>
   // ===== 主題（深/淺） =====
@@ -313,175 +316,172 @@
 
   function render(){ const box = $('#cards'); box.innerHTML=''; model.forEach(d => box.appendChild(makeCard(d))); }
 
-  // ===== 管理面板：列表 + 排序 + 編輯 =====
-  function renderList(){
-    const L = document.getElementById('list'); L.innerHTML='';
-    model.forEach((d,i)=>{
-      const row = document.createElement('div'); row.className='card';
-      row.innerHTML = `<b>${d.name}</b> <span class="hint">(${d.key})</span><br>
-        <span class="hint">濃度：${d.concs.map(x=>x.label).join('、')}</span><br>
-        <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span><br>
-        <span class="hint">建議劑量單位：${d.ref.unit}</span>`;
+// ===== 管理：列表 + 排序 + 編輯 + 新增 =====
+function renderList(){
+  const L = document.getElementById('list'); if (!L) return;
+  L.innerHTML='';
+  model.forEach((d,i)=>{
+    const row = document.createElement('div'); row.className='card';
+    row.innerHTML = `<b>${d.name}</b> <span class="hint">(${d.key})</span><br>
+      <span class="hint">濃度：${d.concs.map(x=>x.label).join('、')}</span><br>
+      <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span><br>
+      <span class="hint">建議劑量單位：${d.ref.unit}</span>`;
 
-      const btnRow = document.createElement('div'); btnRow.className='row'; btnRow.style.marginTop='8px';
+    const btnRow = document.createElement('div'); btnRow.className='row'; btnRow.style.marginTop='8px';
 
-      const btnUp = document.createElement('button');   btnUp.className='btn-ghost'; btnUp.textContent='⬆ 上移';
-      const btnDown = document.createElement('button'); btnDown.className='btn-ghost'; btnDown.textContent='⬇ 下移';
-      const btnE = document.createElement('button');    btnE.className='btn-ghost'; btnE.textContent='編輯';
-      const btnD = document.createElement('button');    btnD.className='btn-ghost'; btnD.textContent='刪除';
+    const btnUp   = document.createElement('button'); btnUp.className='btn-ghost'; btnUp.textContent='⬆ 上移';
+    const btnDown = document.createElement('button'); btnDown.className='btn-ghost'; btnDown.textContent='⬇ 下移';
+    const btnE    = document.createElement('button'); btnE.className='btn-ghost'; btnE.textContent='編輯';
+    const btnD    = document.createElement('button'); btnD.className='btn-ghost'; btnD.textContent='刪除';
 
-      btnUp.onclick = ()=> moveDrug(i, -1);
-      btnDown.onclick = ()=> moveDrug(i, +1);
-      btnE.onclick = ()=> editDrug(i);
-      btnD.onclick = ()=> { if(confirm('確定刪除？')){ model.splice(i,1); save(); renderList(); render(); } };
+    btnUp.onclick   = ()=> moveDrug(i, -1);
+    btnDown.onclick = ()=> moveDrug(i, +1);
+    btnE.onclick    = ()=> editDrug(i);
+    btnD.onclick    = ()=> { if(confirm('確定刪除？')){ model.splice(i,1); save(); renderList(); render(); } };
 
-      if (i===0) btnUp.disabled = true;
-      if (i===model.length-1) btnDown.disabled = true;
+    if (i===0) btnUp.disabled = true;
+    if (i===model.length-1) btnDown.disabled = true;
 
-      btnRow.append(btnUp, btnDown, btnE, btnD);
-      row.append(btnRow);
-      L.appendChild(row);
+    btnRow.append(btnUp, btnDown, btnE, btnD);
+    row.append(btnRow);
+    L.appendChild(row);
+  });
+
+  // 同步深/淺色按鈕文字
+  const themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn){
+    const isDark = JSON.stringify(THEME) === JSON.stringify(DARK);
+    themeBtn.textContent = isDark ? '☀️ 淺色模式' : '🌙 深色模式';
+  }
+}
+
+function moveDrug(index, delta){
+  const j = index + delta;
+  if (j < 0 || j >= model.length) return;
+  const tmp = model[index]; model[index] = model[j]; model[j] = tmp;
+  save(); renderList(); render();
+}
+
+function field(label, el){
+  const wrap = document.createElement('label'); wrap.style.display='block'; wrap.style.margin='6px 0';
+  const cap = document.createElement('div'); cap.className='hint'; cap.textContent = label;
+  wrap.append(cap, el); return wrap;
+}
+
+function editDrug(i){
+  const d = JSON.parse(JSON.stringify(model[i])); // clone
+  const box = document.getElementById('list'); if (!box) return; box.innerHTML='';
+
+  const key = document.createElement('input'); key.className='input'; key.value=d.key;
+  const name = document.createElement('input'); name.className='input'; name.value=d.name;
+
+  const unit = document.createElement('select'); unit.className='select';
+  [['ug','微克 μg'],['mg','毫克 mg'],['unit','單位 U']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; unit.appendChild(o); });
+  unit.value = d.unit;
+
+  const type = document.createElement('select'); type.className='select';
+  [['wt','體重型（*/kg/min 或 */kg/hr）'],['nonwt','非體重型（*/min 或 */hr）']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; type.appendChild(o); });
+  type.value = d.ref.type;
+
+  const rmin = document.createElement('input'); rmin.className='input'; rmin.inputMode='decimal'; rmin.value=d.ref.min;
+  const rmax = document.createElement('input'); rmax.className='input'; rmax.inputMode='decimal'; rmax.value=d.ref.max;
+
+  const refUnits = [
+    'μg/min','mg/min','U/min',
+    'μg/kg/min','mg/kg/min','U/kg/min',
+    'μg/hr','mg/hr','U/hr',
+    'μg/kg/hr','mg/kg/hr','U/kg/hr'
+  ];
+  const runit = document.createElement('select'); runit.className='select';
+  refUnits.forEach(u=>{ const o=document.createElement('option'); o.value=u; o.textContent=u; runit.appendChild(o); });
+  const norm = s => (s||'').toLowerCase().replace(/\s+/g,'');
+  const found = refUnits.find(u => norm(u) === norm(d.ref.unit));
+  runit.value = found || 'μg/min';
+
+  const notes = document.createElement('textarea'); notes.className='input'; notes.value=d.notes||''; notes.rows=3;
+
+  // 可用溶液勾選
+  const dilWrap = document.createElement('div');
+  const cbNS = document.createElement('input'); cbNS.type='checkbox';
+  const labNS = document.createElement('span'); labNS.textContent='NS';
+  const cbD5 = document.createElement('input'); cbD5.type='checkbox';
+  const labD5 = document.createElement('span'); labD5.textContent='D5W';
+  cbNS.checked = (d.diluents||[]).includes('NS');
+  cbD5.checked = (d.diluents||[]).includes('D5W');
+  const dilRow = document.createElement('div'); dilRow.className='row';
+  dilRow.append(cbNS, labNS, cbD5, labD5);
+  dilWrap.appendChild(dilRow);
+
+  // 濃度清單
+  const concWrap = document.createElement('div');
+  const concList = document.createElement('div'); concWrap.appendChild(concList);
+  const addConcBtn = document.createElement('button'); addConcBtn.className='btn-ghost'; addConcBtn.textContent='＋ 新增濃度';
+  addConcBtn.onclick = ()=>{ d.concs.push({label:'',value:0}); drawConcs(); };
+  concWrap.appendChild(addConcBtn);
+
+  function drawConcs(){
+    concList.innerHTML='';
+    d.concs.forEach((c,ci)=>{
+      const row=document.createElement('div'); row.className='row';
+      const l=document.createElement('input'); l.className='input grow'; l.placeholder='例：50 mg / 250 mL (0.2 mg/mL)'; l.value=c.label;
+      const v=document.createElement('input'); v.className='input'; v.style.width='160px'; v.inputMode='decimal'; v.placeholder='每 mL 數值（0.2、1000…）'; v.value=c.value;
+      const del=document.createElement('button'); del.className='btn-ghost'; del.textContent='刪除';
+      l.oninput=()=>c.label=l.value; v.oninput=()=>c.value=+v.value; del.onclick=()=>{ d.concs.splice(ci,1); drawConcs(); };
+      row.append(l,v,del); concList.appendChild(row);
     });
-
-    // 管理面板開啟時，依當前主題更新按鈕文字
-    const themeBtn = document.getElementById('theme-toggle');
-    if (themeBtn){
-      const isDark = JSON.stringify(THEME) === JSON.stringify(DARK);
-      themeBtn.textContent = isDark ? '☀️ 淺色模式' : '🌙 深色模式';
-    }
   }
+  drawConcs();
 
-  function moveDrug(index, delta){
-    const j = index + delta;
-    if (j < 0 || j >= model.length) return;
-    const tmp = model[index];
-    model[index] = model[j];
-    model[j] = tmp;
-    save(); renderList(); render();
-  }
-
-  function field(label, el){
-    const wrap = document.createElement('label'); wrap.style.display='block'; wrap.style.margin='6px 0';
-    const cap = document.createElement('div'); cap.className='hint'; cap.textContent = label;
-    wrap.append(cap, el); return wrap;
-  }
-
-  function editDrug(i){
-    const d = JSON.parse(JSON.stringify(model[i])); // clone
-    const box = $('#list'); box.innerHTML='';
-
-    const key = document.createElement('input'); key.className='input'; key.value=d.key;
-    const name = document.createElement('input'); name.className='input'; name.value=d.name;
-
-    const unit = document.createElement('select'); unit.className='select';
-    [['ug','微克 μg'],['mg','毫克 mg'],['unit','單位 U']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; unit.appendChild(o); });
-    unit.value = d.unit;
-
-    const type = document.createElement('select'); type.className='select';
-    [['wt','體重型（*/kg/min 或 */kg/hr）'],['nonwt','非體重型（*/min 或 */hr）']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; type.appendChild(o); });
-    type.value = d.ref.type;
-
-    const rmin = document.createElement('input'); rmin.className='input'; rmin.inputMode='decimal'; rmin.value=d.ref.min;
-    const rmax = document.createElement('input'); rmax.className='input'; rmax.inputMode='decimal'; rmax.value=d.ref.max;
-
-    const refUnits = [
-      'μg/min','mg/min','U/min',
-      'μg/kg/min','mg/kg/min','U/kg/min',
-      'μg/hr','mg/hr','U/hr',
-      'μg/kg/hr','mg/kg/hr','U/kg/hr'
-    ];
-    const runit = document.createElement('select'); runit.className='select';
-    refUnits.forEach(u=>{ const o=document.createElement('option'); o.value=u; o.textContent=u; runit.appendChild(o); });
-    const norm = s => (s||'').toLowerCase().replace(/\s+/g,'');
-    const found = refUnits.find(u => norm(u) === norm(d.ref.unit));
-    runit.value = found || 'μg/min';
-
-    const notes = document.createElement('textarea'); notes.className='input'; notes.value=d.notes||''; notes.rows=3;
-
-    // 可用溶液勾選
-    const dilWrap = document.createElement('div');
-    const cbNS = document.createElement('input'); cbNS.type='checkbox';
-    const labNS = document.createElement('span'); labNS.textContent='NS';
-    const cbD5 = document.createElement('input'); cbD5.type='checkbox';
-    const labD5 = document.createElement('span'); labD5.textContent='D5W';
-    cbNS.checked = (d.diluents||[]).includes('NS');
-    cbD5.checked = (d.diluents||[]).includes('D5W');
-    const dilRow = document.createElement('div'); dilRow.className='row';
-    dilRow.append(cbNS, labNS, cbD5, labD5);
-    dilWrap.appendChild(dilRow);
-
-    // 濃度清單
-    const concWrap = document.createElement('div');
-    const concList = document.createElement('div'); concWrap.appendChild(concList);
-    const addConcBtn = document.createElement('button'); addConcBtn.className='btn-ghost'; addConcBtn.textContent='＋ 新增濃度';
-    addConcBtn.onclick = ()=>{ d.concs.push({label:'',value:0}); drawConcs(); };
-    concWrap.appendChild(addConcBtn);
-
-    function drawConcs(){
-      concList.innerHTML='';
-      d.concs.forEach((c,ci)=>{
-        const row=document.createElement('div'); row.className='row';
-        const l=document.createElement('input'); l.className='input grow'; l.placeholder='例：50 mg / 250 mL (0.2 mg/mL)'; l.value=c.label;
-        const v=document.createElement('input'); v.className='input'; v.style.width='160px'; v.inputMode='decimal'; v.placeholder='每 mL 數值（0.2、1000…）'; v.value=c.value;
-        const del=document.createElement('button'); del.className='btn-ghost'; del.textContent='刪除';
-        l.oninput=()=>c.label=l.value; v.oninput=()=>c.value=+v.value; del.onclick=()=>{ d.concs.splice(ci,1); drawConcs(); };
-        row.append(l,v,del); concList.appendChild(row);
-      });
-    }
-    drawConcs();
-
-    const saveBtn = document.createElement('button'); saveBtn.className='btn'; saveBtn.textContent='儲存';
-    saveBtn.onclick = ()=>{
-      d.key = key.value.trim(); d.name = name.value.trim();
-      d.unit = unit.value; d.ref.type = type.value;
-      d.ref.min = +rmin.value; d.ref.max = +rmax.value; d.ref.unit = runit.value;
-      d.diluents = []; if (cbNS.checked) d.diluents.push('NS'); if (cbD5.checked) d.diluents.push('D5W');
-      d.concs = d.concs
-        .filter(x=>x.label && Number.isFinite(+x.value) && +x.value>0)
-        .map(x=>({label:x.label, value:+x.value}));
-      d.notes = notes.value;
-      if (!d.key || !d.name) return alert('key 與 name 必填');
-      if (d.concs.length===0) return alert('至少一筆濃度');
-      model[i] = d; save(); renderList(); render(); alert('已儲存');
-    };
-
-    const backBtn = document.createElement('button'); backBtn.className='btn-ghost'; backBtn.textContent='返回';
-    backBtn.onclick = ()=> renderList();
-
-    box.append(
-      field('key（英數，不重複）', key),
-      field('名稱', name),
-      field('濃度基本單位（決定 concs.value 的單位 / mL）', unit),
-      field('劑量型態（體重型 / 非體重型）', type),
-      field('建議劑量最小值', rmin),
-      field('建議劑量最大值', rmax),
-      field('建議劑量單位（選擇 /min 或 /hr、是否含 /kg）', runit),
-      field('可用溶液（勾選）', dilWrap),
-      field('濃度清單（value 以上述基本單位 / mL）', concWrap),
-      field('備註', notes),
-      document.createElement('div'),
-      saveBtn, backBtn
-    );
-  }
-
-  function addDrug(){
-    model.push({
-      key:'Drug'+(Date.now()%10000), name:'新藥', unit:'ug',
-      concs:[{label:'1 mg / 100 mL (10 μg/mL)', value:10}],
-      ref:{min:1, max:10, unit:'μg/kg/min', type:'wt'},
-      diluents:['NS','D5W'],
-      notes:''
-    });
-    save(); renderList(); render();
-  }
-
-  // 管理面板事件
-  document.getElementById('manage').onclick = ()=>{
-    document.getElementById('modal').classList.add('open');
-    renderList();
+  const saveBtn = document.createElement('button'); saveBtn.className='btn'; saveBtn.textContent='儲存';
+  saveBtn.onclick = ()=>{
+    d.key = key.value.trim(); d.name = name.value.trim();
+    d.unit = unit.value; d.ref.type = type.value;
+    d.ref.min = +rmin.value; d.ref.max = +rmax.value; d.ref.unit = runit.value;
+    d.diluents = []; if (cbNS.checked) d.diluents.push('NS'); if (cbD5.checked) d.diluents.push('D5W');
+    d.concs = d.concs.filter(x=>x.label && Number.isFinite(+x.value) && +x.value>0).map(x=>({label:x.label, value:+x.value}));
+    d.notes = notes.value;
+    if (!d.key || !d.name) return alert('key 與 name 必填');
+    if (d.concs.length===0) return alert('至少一筆濃度');
+    model[i] = d; save(); renderList(); render(); alert('已儲存');
   };
-  document.getElementById('close').onclick = ()=>{ document.getElementById('modal').classList.remove('open'); };
-  document.getElementById('add').onclick = addDrug;
+
+  const backBtn = document.createElement('button'); backBtn.className='btn-ghost'; backBtn.textContent='返回';
+  backBtn.onclick = ()=> renderList();
+
+  box.append(
+    field('key（英數，不重複）', key),
+    field('名稱', name),
+    field('濃度基本單位（決定 concs.value 的單位 / mL）', unit),
+    field('劑量型態（體重型 / 非體重型）', type),
+    field('建議劑量最小值', rmin),
+    field('建議劑量最大值', rmax),
+    field('建議劑量單位（選擇 /min 或 /hr、是否含 /kg）', runit),
+    field('可用溶液（勾選）', dilWrap),
+    field('濃度清單（value 以上述基本單位 / mL）', concWrap),
+    field('備註', notes),
+    document.createElement('div'),
+    saveBtn, backBtn
+  );
+}
+
+function addDrug(){
+  model.push({
+    key:'Drug'+(Date.now()%10000), name:'新藥', unit:'ug',
+    concs:[{label:'1 mg / 100 mL (10 μg/mL)', value:10}],
+    ref:{min:1, max:10, unit:'μg/kg/min', type:'wt'},
+    diluents:['NS','D5W'],
+    notes:''
+  });
+  save(); renderList(); render();
+}
+
+// ===== 管理面板按鈕綁定 =====
+document.getElementById('manage').onclick = ()=>{
+  document.getElementById('modal').classList.add('open');
+  renderList();
+};
+document.getElementById('close').onclick = ()=>{ document.getElementById('modal').classList.remove('open'); };
+document.getElementById('add').onclick = addDrug;
 
   // 主題切換按鈕
   document.getElementById('theme-toggle').onclick = ()=>{
