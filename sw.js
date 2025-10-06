@@ -1,6 +1,6 @@
 // --- Simple PWA Service Worker ---
 // 版本字串只要改動就能強制使用者更新快取
-const CACHE_NAME = 'icu-cache-v3';
+const CACHE_NAME = 'icu-cache-v4';
 
 const CORE_ASSETS = [
   './',
