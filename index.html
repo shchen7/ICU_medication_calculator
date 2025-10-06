@@ -8,22 +8,28 @@
   <link rel="manifest" href="./manifest.json" />
   <meta name="theme-color" content="#0f172a" />
   <style>
-    body{font-family:system-ui,sans-serif;background:#f8fafc;color:#0f172a;margin:0}
+    /* ===== 主題變數（支援淺/深色） ===== */
+    :root{
+      --bg:#f8fafc; --text:#0f172a; --card:#ffffff; --border:#e5e7eb;
+      --muted:#64748b; --accent:#0f172a; --pill:#f1f5f9;
+    }
+
+    body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0}
     .wrap{max-width:1100px;margin:24px auto;padding:16px}
     .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 16px rgba(0,0,0,.06)}
     .input,.select,textarea{border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:14px}
-    .note{font-size:14px;color:#0f172a}
-    .hint{font-size:12px;color:#64748b}
-    .btn{border:1px solid #0f172a;border-radius:10px;padding:6px 10px;background:#0f172a;color:#fff;font-size:12px;cursor:pointer}
-    .btn-ghost{border:1px solid #cbd5e1;border-radius:10px;padding:6px 10px;background:#fff;color:#0f172a;cursor:pointer}
-    .pill{border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;font-size:12px;background:#f1f5f9}
+    .note{font-size:14px;color:var(--text)}
+    .hint{font-size:12px;color:var(--muted)}
+    .btn{border:1px solid var(--accent);border-radius:10px;padding:6px 10px;background:var(--accent);color:#fff;font-size:12px;cursor:pointer}
+    .btn-ghost{border:1px solid #cbd5e1;border-radius:10px;padding:6px 10px;background:#fff;color:var(--text);cursor:pointer}
+    .pill{border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:12px;background:var(--pill)}
     h3{margin:0 0 6px 0}
     b{font-size:16px}
     .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
     .modal.open{display:flex}
-    .panel{width:min(1000px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:16px;border:1px solid #e5e7eb}
-    .hr{height:1px;background:#e5e7eb;margin:12px 0}
+    .panel{width:min(1000px,100%);max-height:90vh;overflow:auto;background:var(--card);border-radius:16px;padding:16px;border:1px solid var(--border)}
+    .hr{height:1px;background:var(--border);margin:12px 0}
     .chips{display:flex;flex-wrap:wrap;gap:8px}
     .grow{flex:1}
   </style>
@@ -33,7 +39,7 @@
     <div class="row" style="justify-content:space-between">
       <div>
         <h1>ICU藥物速率計算器</h1>
-        <div class="note"><b>功能：建議劑量·濃度切換·雙向換算(劑量↔速率）·可用溶液(D5W/NS)</b></div>
+        <div class="note"><b>建議劑量·濃度切換·雙向換算(劑量↔速率）·可用溶液(D5W/NS)<b> </div>
       </div>
       <div class="row">
         <button id="manage" class="btn-ghost">管理</button>
@@ -52,12 +58,13 @@
       <div class="row" style="justify-content:space-between">
         <h3 style="margin:0">藥物清單管理</h3>
         <div class="row">
+          <button id="theme-toggle" class="btn-ghost">🌙 深色模式</button>
           <button id="export" class="btn-ghost">匯出</button>
           <button id="import" class="btn-ghost">匯入</button>
           <button id="close" class="btn">關閉</button>
         </div>
       </div>
-      <div class="hint">本機快取（localStorage: <code>icu-drugs-v12</code>）。</div>
+      <div class="hint">本機快取（localStorage: <code>icu-drugs-v12</code>）。可於此面板排序藥物。</div>
       <div id="list" style="margin-top:10px"></div>
       <div class="hr"></div>
       <button id="add" class="btn">＋ 新增藥物</button>
@@ -65,6 +72,20 @@
   </div>
 
   <script>
+  // ===== 主題（深/淺） =====
+  const THEME_KEY = 'icu-theme-v2';
+  const LIGHT = { bg:'#f8fafc', text:'#0f172a', card:'#ffffff', border:'#e5e7eb', muted:'#64748b', accent:'#0f172a', pill:'#f1f5f9' };
+  const DARK  = { bg:'#0b1220', text:'#e6eefc', card:'#0f172a', border:'#1f2a44', muted:'#9fb0d0', accent:'#5da7ff', pill:'#17223a' };
+
+  function applyTheme(t){
+    const r = document.documentElement.style;
+    Object.entries(t).forEach(([k,v])=>r.setProperty(`--${k}`, v));
+  }
+  function loadTheme(){ try{ return JSON.parse(localStorage.getItem(THEME_KEY)) || LIGHT; } catch{ return LIGHT; } }
+  function saveTheme(t){ localStorage.setItem(THEME_KEY, JSON.stringify(t)); }
+
+  let THEME = loadTheme(); applyTheme(THEME);
+
   // ===== 資料 =====
   const KEY = 'icu-drugs-v12'; // 升版本避免舊資料干擾
   const DEFAULT = [
@@ -170,7 +191,7 @@
     (d.diluents||[]).forEach(x=>{ const t=document.createElement('span'); t.className='pill'; t.textContent=x; dil.appendChild(t); });
     card.appendChild(dil);
 
-    // 建議劑量（顯示 ref.unit）
+    // 建議劑量
     const suggest = document.createElement('div');
     suggest.innerHTML = `<b>建議劑量：</b>${d.ref.min}–${d.ref.max} ${d.ref.unit}（成人）`;
     card.appendChild(suggest);
@@ -226,11 +247,11 @@
         if (!(conc>0)) return;
         if (lastEdited==='dose'){
           const dose = parseFloat(dInp.value);
-          if (Number.isFinite(dose) && wt>0) rInp.value = fmt(dose*wt*tf/conc); // mL/hr = 劑量 × 體重 × tf ÷ 濃度
+          if (Number.isFinite(dose) && wt>0) rInp.value = fmt(dose*wt*tf/conc);
           else if (!wt) rInp.value = '';
         } else if (lastEdited==='rate'){
           const rate = parseFloat(rInp.value);
-          if (Number.isFinite(rate) && wt>0) dInp.value = fmt(rate*conc/(tf*wt)); // 劑量 = mL/hr × 濃度 ÷ (tf × 體重)
+          if (Number.isFinite(rate) && wt>0) dInp.value = fmt(rate*conc/(tf*wt));
           else if (!wt) dInp.value = '';
         }
       };
@@ -259,10 +280,10 @@
         if (!(conc>0)) return;
         if (lastEdited==='dose'){
           const dose = parseFloat(dInp.value);
-          if (Number.isFinite(dose)) rInp.value = fmt(dose*tf/conc); // mL/hr = 劑量 × tf ÷ 濃度
+          if (Number.isFinite(dose)) rInp.value = fmt(dose*tf/conc);
         } else if (lastEdited==='rate'){
           const rate = parseFloat(rInp.value);
-          if (Number.isFinite(rate)) dInp.value = fmt(rate*conc/tf); // 劑量 = mL/hr × 濃度 ÷ tf
+          if (Number.isFinite(rate)) dInp.value = fmt(rate*conc/tf);
         }
       };
 
@@ -292,22 +313,51 @@
 
   function render(){ const box = $('#cards'); box.innerHTML=''; model.forEach(d => box.appendChild(makeCard(d))); }
 
-  // ===== 管理面板（含 可用溶液 & 建議劑量單位 下拉） =====
+  // ===== 管理面板：列表 + 排序 + 編輯 =====
   function renderList(){
-    const L = $('#list'); L.innerHTML='';
+    const L = document.getElementById('list'); L.innerHTML='';
     model.forEach((d,i)=>{
       const row = document.createElement('div'); row.className='card';
       row.innerHTML = `<b>${d.name}</b> <span class="hint">(${d.key})</span><br>
         <span class="hint">濃度：${d.concs.map(x=>x.label).join('、')}</span><br>
         <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span><br>
         <span class="hint">建議劑量單位：${d.ref.unit}</span>`;
-      const btnE = document.createElement('button'); btnE.className='btn-ghost'; btnE.textContent='編輯';
-      const btnD = document.createElement('button'); btnD.className='btn-ghost'; btnD.textContent='刪除';
-      btnE.onclick=()=>editDrug(i);
-      btnD.onclick=()=>{ if(confirm('確定刪除？')){ model.splice(i,1); save(); renderList(); render(); } };
-      row.append(document.createElement('br'), btnE, btnD);
+
+      const btnRow = document.createElement('div'); btnRow.className='row'; btnRow.style.marginTop='8px';
+
+      const btnUp = document.createElement('button');   btnUp.className='btn-ghost'; btnUp.textContent='⬆ 上移';
+      const btnDown = document.createElement('button'); btnDown.className='btn-ghost'; btnDown.textContent='⬇ 下移';
+      const btnE = document.createElement('button');    btnE.className='btn-ghost'; btnE.textContent='編輯';
+      const btnD = document.createElement('button');    btnD.className='btn-ghost'; btnD.textContent='刪除';
+
+      btnUp.onclick = ()=> moveDrug(i, -1);
+      btnDown.onclick = ()=> moveDrug(i, +1);
+      btnE.onclick = ()=> editDrug(i);
+      btnD.onclick = ()=> { if(confirm('確定刪除？')){ model.splice(i,1); save(); renderList(); render(); } };
+
+      if (i===0) btnUp.disabled = true;
+      if (i===model.length-1) btnDown.disabled = true;
+
+      btnRow.append(btnUp, btnDown, btnE, btnD);
+      row.append(btnRow);
       L.appendChild(row);
     });
+
+    // 管理面板開啟時，依當前主題更新按鈕文字
+    const themeBtn = document.getElementById('theme-toggle');
+    if (themeBtn){
+      const isDark = JSON.stringify(THEME) === JSON.stringify(DARK);
+      themeBtn.textContent = isDark ? '☀️ 淺色模式' : '🌙 深色模式';
+    }
+  }
+
+  function moveDrug(index, delta){
+    const j = index + delta;
+    if (j < 0 || j >= model.length) return;
+    const tmp = model[index];
+    model[index] = model[j];
+    model[j] = tmp;
+    save(); renderList(); render();
   }
 
   function field(label, el){
@@ -334,7 +384,6 @@
     const rmin = document.createElement('input'); rmin.className='input'; rmin.inputMode='decimal'; rmin.value=d.ref.min;
     const rmax = document.createElement('input'); rmax.className='input'; rmax.inputMode='decimal'; rmax.value=d.ref.max;
 
-    // 建議劑量單位（下拉）
     const refUnits = [
       'μg/min','mg/min','U/min',
       'μg/kg/min','mg/kg/min','U/kg/min',
@@ -423,13 +472,24 @@
       diluents:['NS','D5W'],
       notes:''
     });
-    save(); renderList();
+    save(); renderList(); render();
   }
 
   // 管理面板事件
-  document.getElementById('manage').onclick = ()=>{ document.getElementById('modal').classList.add('open'); renderList(); };
+  document.getElementById('manage').onclick = ()=>{
+    document.getElementById('modal').classList.add('open');
+    renderList();
+  };
   document.getElementById('close').onclick = ()=>{ document.getElementById('modal').classList.remove('open'); };
   document.getElementById('add').onclick = addDrug;
+
+  // 主題切換按鈕
+  document.getElementById('theme-toggle').onclick = ()=>{
+    const isDark = JSON.stringify(THEME) === JSON.stringify(DARK);
+    THEME = isDark ? LIGHT : DARK;
+    applyTheme(THEME); saveTheme(THEME);
+    document.getElementById('theme-toggle').textContent = isDark ? '🌙 深色模式' : '☀️ 淺色模式';
+  };
 
   // 匯出 / 匯入
   document.getElementById('export').onclick = ()=>{
@@ -450,26 +510,20 @@
   };
 
   // ===== 一鍵分享連結（免雲端） =====
-  // 產生可分享連結：把 model 壓到 URL hash（#d=...）
- document.getElementById('share').addEventListener('click', async ()=>{
-  try {
-    const payload = encodeURIComponent(JSON.stringify(model));
-    const b64 = btoa(payload);
-    const longUrl = `${location.origin}${location.pathname}#d=${b64}`;
-
-    // 呼叫 TinyURL API 產生短網址
-    const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
-    const shortUrl = await fetch(apiUrl).then(r => r.text()).catch(()=> longUrl);
-
-    // 複製短網址到剪貼簿
-    await navigator.clipboard?.writeText(shortUrl);
-    alert(`✅ 已產生短網址並複製：\n${shortUrl}`);
-  } catch (e) {
-    console.error(e);
-    alert('❌ 產生分享連結失敗（可能是資料太大或網路問題）');
-  }
-});
-
+  document.getElementById('share').addEventListener('click', async ()=>{
+    try{
+      const payload = encodeURIComponent(JSON.stringify(model));
+      const b64 = btoa(payload);
+      const longUrl = `${location.origin}${location.pathname}#d=${b64}`;
+      // TinyURL 短址（失敗就用原址）
+      const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+      const shortUrl = await fetch(apiUrl).then(r => r.text()).catch(()=> longUrl);
+      await navigator.clipboard?.writeText(shortUrl);
+      alert(`✅ 已產生短網址並複製：\n${shortUrl}`);
+    }catch(e){
+      alert('❌ 產生分享連結失敗（可能是資料太大或網路問題）');
+    }
+  });
 
   // 若以 #d= 開啟 → 自動匯入並清掉 hash
   (function(){
@@ -479,8 +533,7 @@
         const json = decodeURIComponent(atob(b64));
         const data = JSON.parse(json);
         if (Array.isArray(data) && data.length) {
-          model = data;
-          save(); renderList(); render();
+          model = data; save(); renderList(); render();
           alert('已從連結載入藥物清單，並儲存在此裝置。');
         }
       }catch(e){ console.warn('分享連結解析失敗', e); }
@@ -489,23 +542,9 @@
   })();
 
   // 渲染
-  function renderList(){ /* placeholder 立即覆寫 */ }
-  renderList = function(){
-    const L = document.getElementById('list'); L.innerHTML='';
-    model.forEach((d,i)=>{
-      const row = document.createElement('div'); row.className='card';
-      row.innerHTML = `<b>${d.name}</b> <span class="hint">(${d.key})</span><br>
-        <span class="hint">濃度：${d.concs.map(x=>x.label).join('、')}</span><br>
-        <span class="hint">可用溶液：${(d.diluents||[]).join('、')||'—'}</span><br>
-        <span class="hint">建議劑量單位：${d.ref.unit}</span>`;
-      const btnE = document.createElement('button'); btnE.className='btn-ghost'; btnE.textContent='編輯';
-      const btnD = document.createElement('button'); btnD.className='btn-ghost'; btnD.textContent='刪除';
-      btnE.onclick=()=>editDrug(i);
-      btnD.onclick=()=>{ if(confirm('確定刪除？')){ model.splice(i,1); save(); renderList(); render(); } };
-      row.append(document.createElement('br'), btnE, btnD);
-      L.appendChild(row);
-    });
-  };
+  function renderList(){ /* 在上面已定義（此行避免重覆宣告錯誤） */ }
+  // 初次渲染一次列表（關閉狀態也可先備好資料）
+  renderList();
 
   // ===== PWA：Service Worker 註冊 + 一鍵清快取 =====
   if ('serviceWorker' in navigator) {
@@ -520,5 +559,3 @@
   </script>
 </body>
 </html>
-
-
